@@ -1,7 +1,10 @@
 import { useState, useEffect } from 'react';
 import { corbQuestions } from './corbQuestions';
 import { easyQuestions } from './easyQuestions';
+import { generalQuestions } from './generalQuestions';
+import { pittsburghQuestions } from './pittsburghQuestions';
 import { cloudSaveProfile, cloudCreateProfile, cloudCheckNameExists, cloudLoadProfile } from './supabase';
+import { LeaderboardScreen, LeaderboardTicker, fetchLeaderboard } from './Leaderboard';
  
 const TIMER_SECONDS = 15;
 const EXPERIENCE_LEVELS = ['Beginner','Intermediate','Advanced','Scratch'];
@@ -529,25 +532,37 @@ function getProfilePool(profile: Profile | null): any[] {
   const sbr = profile?.sbr || 1000;
   const easyPool = sbr < 950 ? easyQuestions.filter((q:any) => q.difficulty === 'easy') :
                    sbr < 1200 ? easyQuestions : [];
-  if (!profile || !profile.questionnaire) return [...allGolf, ...easyPool];
+  if (!profile || !profile.questionnaire) return [...allGolf, ...generalQuestions, ...easyPool];
   const q = profile.questionnaire;
-  let pool: any[] = [...allGolf];
-  if (q.q4 === 'Sports & Athletics') pool = [...pool, ...PITTSBURGH_QUESTIONS.filter(x=>x.cat==='Sports')];
-  if (q.q4 === 'History & Geography') pool = [...pool, ...PITTSBURGH_QUESTIONS.filter(x=>x.cat==='History & Landmarks'||x.cat==='Geography')];
-  if (q.q4 === 'Pop Culture & Entertainment') pool = [...pool, ...PITTSBURGH_QUESTIONS.filter(x=>x.cat==='Food & Culture')];
-  if (q.q6 === 'Gaming / Technology / Movies & TV') pool = [...pool, ...corbQuestions.filter((x:any)=>x.cat==='90s Wrestling'||x.cat==='Monster Squad'||x.cat==='Sidney Sweeney')];
-  if (q.q6 === 'Fitness / Outdoor sports / Hunting & Fishing') pool = [...pool, ...PITTSBURGH_QUESTIONS.filter(x=>x.cat==='Nature & Parks'||x.cat==='Sports')];
-  if (q.q6 === 'Music / Art / Food & Cooking') pool = [...pool, ...PITTSBURGH_QUESTIONS.filter(x=>x.cat==='Food & Culture')];
-  if (q.q8 === 'Football (NFL / College)') pool = [...pool, ...PITTSBURGH_QUESTIONS.filter(x=>x.cat==='Sports')];
-  if (q.q8 === 'Baseball / Hockey / Basketball') pool = [...pool, ...PITTSBURGH_QUESTIONS.filter(x=>x.cat==='Sports')];
+  let pool: any[] = [...allGolf, ...generalQuestions];
+
+  // Sports
+  if (q.q4 === 'Sports & Athletics') pool = [...pool, ...generalQuestions.filter(x=>x.cat==='Sports'), ...pittsburghQuestions.filter(x=>x.cat==='Pittsburgh')];
+  // History & Geography
+  if (q.q4 === 'History & Geography') pool = [...pool, ...generalQuestions.filter(x=>x.cat==='History'||x.cat==='Geography'), ...pittsburghQuestions.filter(x=>x.cat==='Pittsburgh')];
+  // Pop Culture
+  if (q.q4 === 'Pop Culture & Entertainment') pool = [...pool, ...generalQuestions.filter(x=>x.cat==='Pop Culture'||x.cat==='Movies & TV'||x.cat==='Music')];
+  // Hobbies
+  if (q.q6 === 'Gaming / Technology / Movies & TV') pool = [...pool, ...generalQuestions.filter(x=>x.cat==='Movies & TV'||x.cat==='Pop Culture'), ...corbQuestions.filter((x:any)=>x.cat==='90s Wrestling'||x.cat==='Monster Squad'||x.cat==='Sidney Sweeney')];
+  if (q.q6 === 'Fitness / Outdoor sports / Hunting & Fishing') pool = [...pool, ...generalQuestions.filter(x=>x.cat==='Sports'||x.cat==='Science & Nature')];
+  if (q.q6 === 'Music / Art / Food & Cooking') pool = [...pool, ...generalQuestions.filter(x=>x.cat==='Music'||x.cat==='Food & Drink')];
+  if (q.q6 === 'Reading / History / Travel') pool = [...pool, ...generalQuestions.filter(x=>x.cat==='History'||x.cat==='Geography')];
+  // Sports followed
+  if (q.q8 === 'Football (NFL / College)') pool = [...pool, ...generalQuestions.filter(x=>x.cat==='Sports'), ...pittsburghQuestions.filter(x=>x.cat==='Pittsburgh')];
+  if (q.q8 === 'Baseball / Hockey / Basketball') pool = [...pool, ...generalQuestions.filter(x=>x.cat==='Sports'), ...pittsburghQuestions.filter(x=>x.cat==='Pittsburgh')];
   if (q.q8 === 'Combat sports / Motorsports / Extreme sports') pool = [...pool, ...corbQuestions.filter((x:any)=>x.cat==='90s Wrestling'||x.cat==='Charles Barkley')];
-  if (q.q5 === 'Northeast (PA, NY, NJ, New England)') pool = [...pool, ...PITTSBURGH_QUESTIONS];
+  // Region
+  if (q.q5 === 'Northeast (PA, NY, NJ, New England)') pool = [...pool, ...pittsburghQuestions];
+  // Pop culture era
+  if (q.q10 === '90s / Early 2000s') pool = [...pool, ...generalQuestions.filter(x=>x.cat==='Nostalgia'), ...corbQuestions.filter((x:any)=>x.cat==='90s Wrestling'||x.cat==='Monster Squad')];
+  if (q.q10 === '60s / 70s / 80s') pool = [...pool, ...generalQuestions.filter(x=>x.cat==='Nostalgia'||x.cat==='Music')];
+  // Fav cats
   if (profile.favCats?.includes('Wrestling')) pool = [...pool, ...corbQuestions.filter((x:any)=>x.cat==='90s Wrestling')];
   if (profile.favCats?.includes('Sidney Sweeney')) pool = [...pool, ...corbQuestions.filter((x:any)=>x.cat==='Sidney Sweeney')];
   if (profile.favCats?.includes('Monster Squad')) pool = [...pool, ...corbQuestions.filter((x:any)=>x.cat==='Monster Squad')];
   if (profile.favCats?.includes('Charles Barkley')) pool = [...pool, ...corbQuestions.filter((x:any)=>x.cat==='Charles Barkley')];
   if (profile.favCats?.includes('East Pittsburgh')) pool = [...pool, ...corbQuestions.filter((x:any)=>x.cat==='East Pittsburgh')];
-  if (profile.favCats?.includes('Pittsburgh')) pool = [...pool, ...PITTSBURGH_QUESTIONS];
+  if (profile.favCats?.includes('Pittsburgh')) pool = [...pool, ...pittsburghQuestions];
   if (profile.favCats?.includes('Golf')) pool = [...pool, ...allGolf];
   pool = [...pool, ...easyPool];
   return pool;
@@ -902,6 +917,8 @@ function ProfileScreen({ onBack }: { onBack: () => void }) {
 // ─── MAIN APP ─────────────────────────────────────────────────────
 export default function App() {
   const [screen, setScreen] = useState('landing');
+const [leaderboardData, setLeaderboardData] = useState<any>(null);
+useEffect(() => { fetchLeaderboard().then(setLeaderboardData); }, []);
   const [isGuest, setIsGuest] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
   const [playerNames, setPlayerNames] = useState<string[]>([loadProfile()?.name || '']);
@@ -1033,7 +1050,9 @@ export default function App() {
   }
  
   function startRound(){
-    if(!playerNames[0].trim())return;
+    const profile = loadProfile();
+    if(!playerNames[0].trim() && !profile) return;
+    if(profile && !isGuest) setPlayerNames([profile.name]);
     if(isMulti){startMultiRound();return;}
     const pool = buildRoundPool();
     setRoundPool(pool);setRoundPoolIdx(0);setLastQuestionCat(null);
@@ -1111,6 +1130,7 @@ export default function App() {
   }
  
   if(showProfile) return <ProfileScreen onBack={()=>{setShowProfile(false);setScreen('landing');}}/>;
+  if(screen==='leaderboard') return <LeaderboardScreen onBack={()=>setScreen('landing')}/>;
  
   if(screen==='landing'){
     const profile = loadProfile();
@@ -1135,6 +1155,9 @@ export default function App() {
           </button>
           <button onClick={()=>{setIsGuest(true);setScreen('start');}} style={{background:'transparent',border:'1px solid var(--border)',color:'var(--muted)',padding:'13px',borderRadius:8,fontFamily:'Georgia,serif',fontSize:'0.85rem',cursor:'pointer'}}>
             Play as Guest
+          </button>
+          <button onClick={()=>setScreen('leaderboard')} style={{background:'transparent',border:'1px solid rgba(200,168,75,0.3)',color:'rgba(200,168,75,0.7)',padding:'13px',borderRadius:8,fontFamily:'Georgia,serif',fontSize:'0.85rem',cursor:'pointer',letterSpacing:'2px'}}>
+            🏆 Leaderboard
           </button>
         </div>
       </div>
