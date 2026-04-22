@@ -829,26 +829,15 @@ function QuestionnaireScreen({onComplete,onSkip,existing}:{onComplete:(q:Questio
 
 // ─── PROFILE SCREEN ───────────────────────────────────────────────
 function ProfileScreen({onBack,onSwitchPlayer}:{onBack:()=>void;onSwitchPlayer:()=>void}){
-  const [mode,setMode]=useState<'menu'|'create'|'view'|'questionnaire'|'calibration'>(() => loadProfile()?'view':'menu');
+  const [mode,setMode]=useState<'create'|'view'|'questionnaire'|'calibration'>(() => loadProfile()?'view':'create');
   const [profile,setProfile]=useState<Profile|null>(loadProfile);
   const [name,setName]=useState(profile?.name||'');
   const [experience,setExperience]=useState(profile?.experience||'Beginner');
   const [pin,setPin]=useState(profile?.pin||'');
   const [pinError,setPinError]=useState('');
   const [cloudSyncing,setCloudSyncing]=useState(false);
-  const [loginName,setLoginName]=useState('');
-  const [loginPin,setLoginPin]=useState('');
-  const [loginError,setLoginError]=useState('');
-  const [loginLoading,setLoginLoading]=useState(false);
+  
   const [ptaDivision,setPtaDivision]=useState(profile?.division||'');
-
-  async function handleLogin(){
-    if(!loginName.trim()||loginPin.length!==4)return;
-    setLoginLoading(true);setLoginError('');
-    const found=await cloudLoadProfile(loginName.trim(),loginPin);
-    if(!found){setLoginError('Name or PIN not found — try again');setLoginLoading(false);return;}
-    saveProfile(found);setProfile(found);setLoginLoading(false);setMode('view');
-  }
 
   async function handleSave(){
     if(!name.trim())return;
