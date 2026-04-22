@@ -158,7 +158,7 @@ async function updateFundraiserLeaderboard(
 
   const existingIndex = entries.findIndex(
     (entry) =>
-      entry.name === profile.name &&
+      entry.name.toLowerCase().trim() === profile.name.toLowerCase().trim() &&
       entry.division === (profile.division || 'Open')
   );
 
