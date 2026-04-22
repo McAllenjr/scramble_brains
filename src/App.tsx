@@ -129,19 +129,42 @@ async function saveFundraiserLeaderboard(
 ) {
   try {
     for (const entry of entries) {
-      await supabase.from('fundraiser_leaderboard').upsert({
-        id: entry.id,
-        name: entry.name,
-        division: entry.division,
-        event_name: entry.eventName,
-        rounds_completed: entry.roundsCompleted,
-        total_correct: entry.totalCorrect,
-        total_questions: entry.totalQuestions,
-        total_score: entry.totalScore,
-        total_score_vs_par: entry.totalScoreVsPar,
-        accuracy: entry.accuracy,
-        completed_at: entry.completedAt,
-      });
+      const { data: existing } = await supabase
+        .from('fundraiser_leaderboard')
+        .select('id')
+        .eq('event_name', eventName)
+        .eq('name', entry.name)
+        .eq('division', entry.division)
+        .single();
+
+      if (existing) {
+        await supabase
+          .from('fundraiser_leaderboard')
+          .update({
+            rounds_completed: entry.roundsCompleted,
+            total_correct: entry.totalCorrect,
+            total_questions: entry.totalQuestions,
+            total_score: entry.totalScore,
+            total_score_vs_par: entry.totalScoreVsPar,
+            accuracy: entry.accuracy,
+            completed_at: entry.completedAt,
+          })
+          .eq('id', existing.id);
+      } else {
+        await supabase.from('fundraiser_leaderboard').insert({
+          id: entry.id,
+          name: entry.name,
+          division: entry.division,
+          event_name: entry.eventName,
+          rounds_completed: entry.roundsCompleted,
+          total_correct: entry.totalCorrect,
+          total_questions: entry.totalQuestions,
+          total_score: entry.totalScore,
+          total_score_vs_par: entry.totalScoreVsPar,
+          accuracy: entry.accuracy,
+          completed_at: entry.completedAt,
+        });
+      }
     }
   } catch {}
 }
