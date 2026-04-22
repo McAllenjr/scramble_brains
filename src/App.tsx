@@ -266,7 +266,8 @@ function getEventPar(sbIndex:number): number {
   if(sbIndex<=20)return 64; if(sbIndex<=25)return 68; return 72;
 }
 function calcFundraiserRoundScore(correct:number,incorrect:number,roundPar:number):number {
-  const raw=roundPar+Math.round(incorrect*0.75-correct*0.5);
+  const net=correct-incorrect;
+  const raw=roundPar-Math.round(net*0.5);
   return Math.max(roundPar-9,Math.min(roundPar+9,raw));
 }
 function formatVsPar(score:number,par:number):string {
@@ -1427,7 +1428,7 @@ export default function App(){
     const eventPar=profile?.eventPar||getEventPar(profile?.sbIndex||12);
     const roundPar=Math.round(eventPar/4);
     const rawScore=calcFundraiserRoundScore(fundraiserCorrect,18-fundraiserCorrect,roundPar);
-    const vsPar=rawScore-eventPar;
+    const vsPar=rawScore-roundPar;
     const parLabel=vsPar<0?`${vsPar}`:vsPar===0?'E':`+${vsPar}`;
     const parColor=vsPar<0?'var(--gold)':vsPar===0?'var(--green-lt)':'var(--red)';
     const msg =
