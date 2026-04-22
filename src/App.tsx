@@ -159,7 +159,7 @@ async function updateFundraiserLeaderboard(
   const existingIndex = entries.findIndex(
     (entry) =>
       entry.name.toLowerCase().trim() === profile.name.toLowerCase().trim() &&
-      entry.division === (profile.division || 'Open')
+      entry.division.toLowerCase().trim() === (profile.division || 'Open').toLowerCase().trim()
   );
 
   if (existingIndex >= 0 && entries[existingIndex].roundsCompleted >= 4) {
@@ -321,11 +321,11 @@ function getNextTuesdayNoon():Date {
 
 // ─── CLUBS & COURSE ──────────────────────────────────────────────
 const CLUBS:any={
-  driver:{name:'Driver',yards:180,emoji:'🏌️'},wood3:{name:'3-Wood',yards:160,emoji:'🌲'},wood5:{name:'5-Wood',yards:148,emoji:'🌲'},
-  hybrid4:{name:'4-Hybrid',yards:143,emoji:'🔧'},iron4:{name:'4-Iron',yards:135,emoji:'⛳'},iron5:{name:'5-Iron',yards:126,emoji:'⛳'},
-  iron6:{name:'6-Iron',yards:120,emoji:'⛳'},iron7:{name:'7-Iron',yards:115,emoji:'⛳'},iron8:{name:'8-Iron',yards:108,emoji:'⛳'},
-  iron9:{name:'9-Iron',yards:100,emoji:'⛳'},pw:{name:'Pitching Wedge',yards:85,emoji:'🪁'},gw:{name:'Gap Wedge',yards:75,emoji:'🪁'},
-  sw:{name:'Sand Wedge',yards:62,emoji:'🏖️'},lw:{name:'Lob Wedge',yards:50,emoji:'🏖️'},wedge64:{name:'64° Wedge',yards:38,emoji:'🏖️'},
+  driver:{name:'Driver',yards:260,emoji:'🏌️'},wood3:{name:'3-Wood',yards:235,emoji:'🌲'},wood5:{name:'5-Wood',yards:215,emoji:'🌲'},
+  hybrid4:{name:'4-Hybrid',yards:200,emoji:'🔧'},iron4:{name:'4-Iron',yards:185,emoji:'⛳'},iron5:{name:'5-Iron',yards:170,emoji:'⛳'},
+  iron6:{name:'6-Iron',yards:160,emoji:'⛳'},iron7:{name:'7-Iron',yards:150,emoji:'⛳'},iron8:{name:'8-Iron',yards:140,emoji:'⛳'},
+  iron9:{name:'9-Iron',yards:130,emoji:'⛳'},pw:{name:'Pitching Wedge',yards:115,emoji:'🪁'},gw:{name:'Gap Wedge',yards:100,emoji:'🪁'},
+  sw:{name:'Sand Wedge',yards:80,emoji:'🏖️'},lw:{name:'Lob Wedge',yards:65,emoji:'🏖️'},wedge64:{name:'64° Wedge',yards:50,emoji:'🏖️'},
   putter:{name:'Putter',yards:0,emoji:'🏳️'},
 };
 
