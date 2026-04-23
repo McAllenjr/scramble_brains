@@ -177,77 +177,51 @@ async function updateFundraiserLeaderboard(
   roundScore: number,
   roundScoreVsPar: number
 ) {
-  const entries = await loadFundraiserLeaderboard(eventName);
+  try {
+    const { data: existing } = await supabase
+      .from('fundraiser_leaderboard')
+      .select('*')
+      .eq('event_name', eventName)
+      .eq('name', profile.name)
+      .single();
 
-  const existingIndex = entries.findIndex(
-    (entry) =>
-      entry.name.toLowerCase().trim() === profile.name.toLowerCase().trim() &&
-      entry.division.toLowerCase().trim() === (profile.division || 'Open').toLowerCase().trim()
-  );
-
-  if (existingIndex >= 0 && entries[existingIndex].roundsCompleted >= 4) {
-    const currentProfile = loadProfile();
-    if (currentProfile) {
-      const updated = {
-        ...currentProfile,
-        roundsPlayed: (currentProfile.roundsPlayed || 0) + 1,
-        correctAnswers: (currentProfile.correctAnswers || 0) + roundCorrect,
-        totalAnswers: (currentProfile.totalAnswers || 0) + roundTotal,
-      };
-      saveProfile(updated);
+    if (existing && existing.rounds_completed >= 4) {
+      return;
     }
-    return;
+
+    if (existing) {
+      const newCorrect = existing.total_correct + roundCorrect;
+      const newTotal = existing.total_questions + roundTotal;
+      await supabase
+        .from('fundraiser_leaderboard')
+        .update({
+          rounds_completed: existing.rounds_completed + 1,
+          total_correct: newCorrect,
+          total_questions: newTotal,
+          total_score: existing.total_score + roundScore,
+          total_score_vs_par: existing.total_score_vs_par + roundScoreVsPar,
+          accuracy: Math.round((newCorrect / newTotal) * 100),
+          completed_at: Date.now(),
+        })
+        .eq('id', existing.id);
+    } else {
+      await supabase.from('fundraiser_leaderboard').insert({
+        id: `${Date.now()}_${profile.name}`,
+        name: profile.name,
+        division: profile.division || 'Open',
+        event_name: eventName,
+        rounds_completed: 1,
+        total_correct: roundCorrect,
+        total_questions: roundTotal,
+        total_score: roundScore,
+        total_score_vs_par: roundScoreVsPar,
+        accuracy: roundTotal ? Math.round((roundCorrect / roundTotal) * 100) : 0,
+        completed_at: Date.now(),
+      });
+    }
+  } catch(e) {
+    console.error('Leaderboard update error:', e);
   }
-
-  if (existingIndex >= 0) {
-    const existing = entries[existingIndex];
-
-    entries[existingIndex] = {
-      ...existing,
-      roundsCompleted: existing.roundsCompleted + 1,
-      totalCorrect: existing.totalCorrect + roundCorrect,
-      totalQuestions: existing.totalQuestions + roundTotal,
-      totalScore: existing.totalScore + roundScore,
-      totalScoreVsPar: existing.totalScoreVsPar + roundScoreVsPar,
-      accuracy: Math.round(
-        ((existing.totalCorrect + roundCorrect) /
-          (existing.totalQuestions + roundTotal)) *
-          100
-      ),
-      completedAt: Date.now(),
-    };
-  } else {
-    entries.push({
-      id: `${Date.now()}_${profile.name}`,
-      name: profile.name,
-      division: profile.division || 'Open',
-      eventName,
-      roundsCompleted: 1,
-      totalCorrect: roundCorrect,
-      totalQuestions: roundTotal,
-      totalScore: roundScore,
-      totalScoreVsPar: roundScoreVsPar,
-      accuracy: roundTotal
-        ? Math.round((roundCorrect / roundTotal) * 100)
-        : 0,
-      completedAt: Date.now(),
-    });
-  }
-
-  entries.sort((a, b) => {
-    if (a.roundsCompleted !== b.roundsCompleted) {
-      return b.roundsCompleted - a.roundsCompleted;
-    }
-    if (a.totalScore !== b.totalScore) {
-      return a.totalScore - b.totalScore;
-    }
-    if (b.totalCorrect !== a.totalCorrect) {
-      return b.totalCorrect - a.totalCorrect;
-    }
-    return b.completedAt - a.completedAt;
-  });
-
-  await saveFundraiserLeaderboard(eventName, entries);
 }
 
 // ─── QUESTIONNAIRE DATA ───────────────────────────────────────────
@@ -1501,11 +1475,11 @@ export default function App(){
         </div>
         <div style={{width:'100%',maxWidth:320,marginBottom:20}}>
           <p style={{fontSize:'0.62rem',letterSpacing:'3px',textTransform:'uppercase',color:'var(--muted)',marginBottom:10,textAlign:'center'}}>
-            {profile?.division||'Open'} Leaderboard
+          Overall Leaderboard
           </p>
           {(() => {
             const allEntries=fundraiserLeaderboard;
-            const divLB=allEntries.filter(e=>e.division===(profile?.division||'Open'));
+            const divLB=allEntries;
             const myEntry=divLB.find(e=>e.name===profile?.name);
             const myRank=myEntry?divLB.indexOf(myEntry)+1:0;
             return(<>
@@ -1536,7 +1510,7 @@ export default function App(){
         <div style={{display:'flex',gap:10,width:'100%',maxWidth:300}}>
         {(() => {
   const allE=fundraiserLeaderboard;
-  const myE=allE.find(e=>e.name===profile?.name&&e.division===(profile?.division||'Open'));
+  const myE=allE.find(e=>e.name===profile?.name);
   const completed=(myE?.roundsCompleted||0)>=4;
   return completed?(
     <div style={{display:'flex',gap:8,flex:1}}>
