@@ -1015,12 +1015,26 @@ function FundraiserGame({profile,onComplete,onExit}:{
   const isLoadingQuestions = questions.length === 0;
   const q=questions[holeIdx];
 
-  useEffect(() => {
-    const shuffled = [...PITTSBURGH_QUESTIONS]
-      .sort(() => Math.random() - 0.5)
-      .slice(0, 18);
-    setQuestions(shuffled);
+   useEffect(() => {
+    async function loadQuestions() {
+      try {
+        const res = await fetch('/questions/general_v1.json');
+        const data = await res.json();
+        const shuffled = [...data]
+          .sort(() => Math.random() - 0.5)
+          .slice(0, 18);
+        setQuestions(shuffled);
+      } catch (err) {
+        console.error('Failed to load questions', err);
+        const shuffled = [...PITTSBURGH_QUESTIONS]
+          .sort(() => Math.random() - 0.5)
+          .slice(0, 18);
+        setQuestions(shuffled);
+      }
+    }
+    loadQuestions();
   }, []);
+
 
   useEffect(()=>{
     if(isLoadingQuestions) return;
