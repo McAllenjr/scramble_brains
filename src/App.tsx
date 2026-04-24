@@ -1343,8 +1343,7 @@ export default function App(){
     try{
       const res=await fetch('/questions/general_v1.json');
       const data=await res.json();
-      const golfQ=Object.values(QUESTIONS).flat() as any[];
-      pool=[...data,...golfQ].sort(()=>Math.random()-0.5);
+      pool=[...data].sort(()=>Math.random()-0.5);
     }catch{
       pool=isGuest||!profile||!profile.questionnaire?Object.values(QUESTIONS).flat() as any[]:getProfilePool(profile);
     }
