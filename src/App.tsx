@@ -321,11 +321,11 @@ function getNextTuesdayNoon():Date {
 
 // ─── CLUBS & COURSE ──────────────────────────────────────────────
 const CLUBS:any={
-  driver:{name:'Driver',yards:180,emoji:'🏌️'},wood3:{name:'3-Wood',yards:160,emoji:'🌲'},wood5:{name:'5-Wood',yards:148,emoji:'🌲'},
-  hybrid4:{name:'4-Hybrid',yards:143,emoji:'🔧'},iron4:{name:'4-Iron',yards:135,emoji:'⛳'},iron5:{name:'5-Iron',yards:126,emoji:'⛳'},
-  iron6:{name:'6-Iron',yards:120,emoji:'⛳'},iron7:{name:'7-Iron',yards:115,emoji:'⛳'},iron8:{name:'8-Iron',yards:108,emoji:'⛳'},
-  iron9:{name:'9-Iron',yards:100,emoji:'⛳'},pw:{name:'Pitching Wedge',yards:85,emoji:'🪁'},gw:{name:'Gap Wedge',yards:75,emoji:'🪁'},
-  sw:{name:'Sand Wedge',yards:62,emoji:'🏖️'},lw:{name:'Lob Wedge',yards:50,emoji:'🏖️'},wedge64:{name:'64° Wedge',yards:38,emoji:'🏖️'},
+  driver:{name:'Driver',yards:230,emoji:'🏌️'},wood3:{name:'3-Wood',yards:210,emoji:'🌲'},wood5:{name:'5-Wood',yards:195,emoji:'🌲'},
+  hybrid4:{name:'4-Hybrid',yards:180,emoji:'🔧'},iron4:{name:'4-Iron',yards:170,emoji:'⛳'},iron5:{name:'5-Iron',yards:160,emoji:'⛳'},
+  iron6:{name:'6-Iron',yards:150,emoji:'⛳'},iron7:{name:'7-Iron',yards:140,emoji:'⛳'},iron8:{name:'8-Iron',yards:130,emoji:'⛳'},
+  iron9:{name:'9-Iron',yards:120,emoji:'⛳'},pw:{name:'Pitching Wedge',yards:105,emoji:'🪁'},gw:{name:'Gap Wedge',yards:90,emoji:'🪁'},
+  sw:{name:'Sand Wedge',yards:75,emoji:'🏖️'},lw:{name:'Lob Wedge',yards:60,emoji:'🏖️'},wedge64:{name:'64° Wedge',yards:45,emoji:'🏖️'},
   putter:{name:'Putter',yards:0,emoji:'🏳️'},
 };
 
@@ -342,10 +342,10 @@ const COURSE=[
 ];
 
 function getAvailableClubs(remaining:number):string[]{
-  if(remaining>160)return['driver','wood3','wood5'];if(remaining>140)return['wood3','wood5','hybrid4'];
-  if(remaining>120)return['hybrid4','iron4','iron5'];if(remaining>105)return['iron5','iron6','iron7'];
-  if(remaining>90)return['iron7','iron8','iron9'];if(remaining>70)return['iron9','pw','gw'];
-  if(remaining>50)return['pw','gw','sw'];if(remaining>35)return['gw','sw','lw'];return['sw','lw','wedge64'];
+  if(remaining>200)return['driver','wood3','wood5'];if(remaining>170)return['wood3','wood5','hybrid4'];
+  if(remaining>150)return['hybrid4','iron4','iron5'];if(remaining>130)return['iron5','iron6','iron7'];
+  if(remaining>110)return['iron7','iron8','iron9'];if(remaining>90)return['iron9','pw','gw'];
+  if(remaining>70)return['pw','gw','sw'];if(remaining>50)return['gw','sw','lw'];return['sw','lw','wedge64'];
 }
 function getMultiplier(s:number){return s>=10?1.05:s>=5?0.9:s>0?0.75:0.65;}
 function getBucket(r:number){return r>160?'Long Shot':r>120?'Long Approach':r>75?'Mid Approach':r>20?'Short Game':'Putting Range';}
