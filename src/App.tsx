@@ -129,42 +129,19 @@ async function saveFundraiserLeaderboard(
 ) {
   try {
     for (const entry of entries) {
-      const { data: existing } = await supabase
-        .from('fundraiser_leaderboard')
-        .select('id')
-        .eq('event_name', eventName)
-        .eq('name', entry.name)
-        .eq('division', entry.division)
-        .single();
-
-      if (existing) {
-        await supabase
-          .from('fundraiser_leaderboard')
-          .update({
-            rounds_completed: entry.roundsCompleted,
-            total_correct: entry.totalCorrect,
-            total_questions: entry.totalQuestions,
-            total_score: entry.totalScore,
-            total_score_vs_par: entry.totalScoreVsPar,
-            accuracy: entry.accuracy,
-            completed_at: entry.completedAt,
-          })
-          .eq('id', existing.id);
-      } else {
-        await supabase.from('fundraiser_leaderboard').insert({
-          id: entry.id,
-          name: entry.name,
-          division: entry.division,
-          event_name: entry.eventName,
-          rounds_completed: entry.roundsCompleted,
-          total_correct: entry.totalCorrect,
-          total_questions: entry.totalQuestions,
-          total_score: entry.totalScore,
-          total_score_vs_par: entry.totalScoreVsPar,
-          accuracy: entry.accuracy,
-          completed_at: entry.completedAt,
-        });
-      }
+      await supabase.from('fundraiser_leaderboard').upsert({
+        id: entry.id,
+        name: entry.name,
+        division: entry.division,
+        event_name: entry.eventName,
+        rounds_completed: entry.roundsCompleted,
+        total_correct: entry.totalCorrect,
+        total_questions: entry.totalQuestions,
+        total_score: entry.totalScore,
+        total_score_vs_par: entry.totalScoreVsPar,
+        accuracy: entry.accuracy,
+        completed_at: entry.completedAt,
+      });
     }
   } catch {}
 }
@@ -177,51 +154,77 @@ async function updateFundraiserLeaderboard(
   roundScore: number,
   roundScoreVsPar: number
 ) {
-  try {
-    const { data: existing } = await supabase
-      .from('fundraiser_leaderboard')
-      .select('*')
-      .eq('event_name', eventName)
-      .eq('name', profile.name)
-      .single();
+  const entries = await loadFundraiserLeaderboard(eventName);
 
-    if (existing && existing.rounds_completed >= 4) {
-      return;
-    }
+  const existingIndex = entries.findIndex(
+    (entry) =>
+      entry.name.toLowerCase().trim() === profile.name.toLowerCase().trim() &&
+      entry.division === (profile.division || 'Open')
+  );
 
-    if (existing) {
-      const newCorrect = existing.total_correct + roundCorrect;
-      const newTotal = existing.total_questions + roundTotal;
-      await supabase
-        .from('fundraiser_leaderboard')
-        .update({
-          rounds_completed: existing.rounds_completed + 1,
-          total_correct: newCorrect,
-          total_questions: newTotal,
-          total_score: existing.total_score + roundScore,
-          total_score_vs_par: existing.total_score_vs_par + roundScoreVsPar,
-          accuracy: Math.round((newCorrect / newTotal) * 100),
-          completed_at: Date.now(),
-        })
-        .eq('id', existing.id);
-    } else {
-      await supabase.from('fundraiser_leaderboard').insert({
-        id: `${Date.now()}_${profile.name}`,
-        name: profile.name,
-        division: profile.division || 'Open',
-        event_name: eventName,
-        rounds_completed: 1,
-        total_correct: roundCorrect,
-        total_questions: roundTotal,
-        total_score: roundScore,
-        total_score_vs_par: roundScoreVsPar,
-        accuracy: roundTotal ? Math.round((roundCorrect / roundTotal) * 100) : 0,
-        completed_at: Date.now(),
-      });
+  if (existingIndex >= 0 && entries[existingIndex].roundsCompleted >= 4) {
+    const currentProfile = loadProfile();
+    if (currentProfile) {
+      const updated = {
+        ...currentProfile,
+        roundsPlayed: (currentProfile.roundsPlayed || 0) + 1,
+        correctAnswers: (currentProfile.correctAnswers || 0) + roundCorrect,
+        totalAnswers: (currentProfile.totalAnswers || 0) + roundTotal,
+      };
+      saveProfile(updated);
     }
-  } catch(e) {
-    console.error('Leaderboard update error:', e);
+    return;
   }
+
+  if (existingIndex >= 0) {
+    const existing = entries[existingIndex];
+
+    entries[existingIndex] = {
+      ...existing,
+      roundsCompleted: existing.roundsCompleted + 1,
+      totalCorrect: existing.totalCorrect + roundCorrect,
+      totalQuestions: existing.totalQuestions + roundTotal,
+      totalScore: existing.totalScore + roundScore,
+      totalScoreVsPar: existing.totalScoreVsPar + roundScoreVsPar,
+      accuracy: Math.round(
+        ((existing.totalCorrect + roundCorrect) /
+          (existing.totalQuestions + roundTotal)) *
+          100
+      ),
+      completedAt: Date.now(),
+    };
+  } else {
+    entries.push({
+      id: `${Date.now()}_${profile.name}`,
+      name: profile.name,
+      division: profile.division || 'Open',
+      eventName,
+      roundsCompleted: 1,
+      totalCorrect: roundCorrect,
+      totalQuestions: roundTotal,
+      totalScore: roundScore,
+      totalScoreVsPar: roundScoreVsPar,
+      accuracy: roundTotal
+        ? Math.round((roundCorrect / roundTotal) * 100)
+        : 0,
+      completedAt: Date.now(),
+    });
+  }
+
+  entries.sort((a, b) => {
+    if (a.roundsCompleted !== b.roundsCompleted) {
+      return b.roundsCompleted - a.roundsCompleted;
+    }
+    if (a.totalScore !== b.totalScore) {
+      return a.totalScore - b.totalScore;
+    }
+    if (b.totalCorrect !== a.totalCorrect) {
+      return b.totalCorrect - a.totalCorrect;
+    }
+    return b.completedAt - a.completedAt;
+  });
+
+  await saveFundraiserLeaderboard(eventName, entries);
 }
 
 // ─── QUESTIONNAIRE DATA ───────────────────────────────────────────
@@ -318,11 +321,11 @@ function getNextTuesdayNoon():Date {
 
 // ─── CLUBS & COURSE ──────────────────────────────────────────────
 const CLUBS:any={
-  driver:{name:'Driver',yards:260,emoji:'🏌️'},wood3:{name:'3-Wood',yards:235,emoji:'🌲'},wood5:{name:'5-Wood',yards:215,emoji:'🌲'},
-  hybrid4:{name:'4-Hybrid',yards:200,emoji:'🔧'},iron4:{name:'4-Iron',yards:185,emoji:'⛳'},iron5:{name:'5-Iron',yards:170,emoji:'⛳'},
-  iron6:{name:'6-Iron',yards:160,emoji:'⛳'},iron7:{name:'7-Iron',yards:150,emoji:'⛳'},iron8:{name:'8-Iron',yards:140,emoji:'⛳'},
-  iron9:{name:'9-Iron',yards:130,emoji:'⛳'},pw:{name:'Pitching Wedge',yards:115,emoji:'🪁'},gw:{name:'Gap Wedge',yards:100,emoji:'🪁'},
-  sw:{name:'Sand Wedge',yards:80,emoji:'🏖️'},lw:{name:'Lob Wedge',yards:65,emoji:'🏖️'},wedge64:{name:'64° Wedge',yards:50,emoji:'🏖️'},
+  driver:{name:'Driver',yards:180,emoji:'🏌️'},wood3:{name:'3-Wood',yards:160,emoji:'🌲'},wood5:{name:'5-Wood',yards:148,emoji:'🌲'},
+  hybrid4:{name:'4-Hybrid',yards:143,emoji:'🔧'},iron4:{name:'4-Iron',yards:135,emoji:'⛳'},iron5:{name:'5-Iron',yards:126,emoji:'⛳'},
+  iron6:{name:'6-Iron',yards:120,emoji:'⛳'},iron7:{name:'7-Iron',yards:115,emoji:'⛳'},iron8:{name:'8-Iron',yards:108,emoji:'⛳'},
+  iron9:{name:'9-Iron',yards:100,emoji:'⛳'},pw:{name:'Pitching Wedge',yards:85,emoji:'🪁'},gw:{name:'Gap Wedge',yards:75,emoji:'🪁'},
+  sw:{name:'Sand Wedge',yards:62,emoji:'🏖️'},lw:{name:'Lob Wedge',yards:50,emoji:'🏖️'},wedge64:{name:'64° Wedge',yards:38,emoji:'🏖️'},
   putter:{name:'Putter',yards:0,emoji:'🏳️'},
 };
 
@@ -741,8 +744,8 @@ function ProfilePickerScreen({onSelect,onNew,onBack}:{onSelect:(p:Profile)=>void
         <h2 style={{fontFamily:'Georgia,serif',color:'var(--gold)',marginBottom:4}}>{pinTarget}</h2>
         <p style={{fontSize:'0.72rem',color:'var(--muted)',marginBottom:24}}>Enter your PIN to continue</p>
         <input type="password" maxLength={4} placeholder="4-digit PIN" value={pinInput} onChange={e=>setPinInput(e.target.value.replace(/\D/g,'').slice(0,4))}
-          style={{background:'transparent',border:'none',borderBottom:'1px solid var(--gold)',color:'var(--text)',padding:'10px 8px',fontFamily:'Georgia,serif',fontSize:'1.4rem',textAlign:'center',outline:'none',marginBottom:16,width:'100%',maxWidth:200,letterSpacing:'8px'}}/>
-        {pinError&&<p style={{color:'var(--red)',fontSize:'0.78rem',marginBottom:12}}>{pinError}</p>}
+          style={{background:'transparent',border:'none',borderBottom:'2px solid var(--gold)',color:'var(--text)',padding:'16px 8px',fontFamily:'Georgia,serif',fontSize:'2.4rem',textAlign:'center',outline:'none',marginBottom:16,width:'100%',maxWidth:200,letterSpacing:'12px'}}/>
+        {pinError&&<p style={{color:'var(--red)',fontSize:'0.88rem',marginBottom:12}}>{pinError}</p>}
         <button className="btn" style={{width:'100%',maxWidth:280,marginBottom:10}} onClick={confirmPin} disabled={pinInput.length!==4}>Enter →</button>
         <button onClick={()=>{setPinTarget(null);setPinError('');}} style={{background:'transparent',border:'none',color:'var(--muted)',fontFamily:'Georgia,serif',fontSize:'0.8rem',cursor:'pointer'}}>← Back</button>
       </div>
@@ -1015,7 +1018,7 @@ function FundraiserGame({profile,onComplete,onExit}:{
   const isLoadingQuestions = questions.length === 0;
   const q=questions[holeIdx];
 
-   useEffect(() => {
+  useEffect(() => {
     async function loadQuestions() {
       try {
         const res = await fetch('/questions/general_v1.json');
@@ -1034,7 +1037,6 @@ function FundraiserGame({profile,onComplete,onExit}:{
     }
     loadQuestions();
   }, []);
-
 
   useEffect(()=>{
     if(isLoadingQuestions) return;
@@ -1158,9 +1160,9 @@ function FundraiserGame({profile,onComplete,onExit}:{
 
       {phase==='question'&&q&&(
         <>
-          <div className="timer-wrap">
-            <div className={`timer-bar ${timeLeft<=5?'danger':''}`} style={{width:`${(timeLeft/15)*100}%`}}/>
-            <span className={`timer-label ${timeLeft<=5?'danger':''}`}>{timeLeft}s</span>
+          <div className="timer-wrap" style={{marginBottom:16,border:'1px solid var(--border)',borderRadius:8,overflow:'hidden',position:'relative',height:40}}>
+            <div className={`timer-bar ${timeLeft<=5?'danger':''}`} style={{width:`${(timeLeft/15)*100}%`,height:'100%',transition:'width 1s linear'}}/>
+            <span className={`timer-label ${timeLeft<=5?'danger':''}`} style={{position:'absolute',top:'50%',left:'50%',transform:'translate(-50%,-50%)',fontSize:'1.1rem',fontWeight:'bold',letterSpacing:'2px'}}>{timeLeft}s</span>
           </div>
 
           {q.cat&&<p style={{fontSize:'0.65rem',letterSpacing:'2px',textTransform:'uppercase',color:'var(--muted)',textAlign:'center',marginBottom:8}}>{q.cat}</p>}
@@ -1489,11 +1491,11 @@ export default function App(){
         </div>
         <div style={{width:'100%',maxWidth:320,marginBottom:20}}>
           <p style={{fontSize:'0.62rem',letterSpacing:'3px',textTransform:'uppercase',color:'var(--muted)',marginBottom:10,textAlign:'center'}}>
-          Overall Leaderboard
+            {profile?.division||'Open'} Leaderboard
           </p>
           {(() => {
             const allEntries=fundraiserLeaderboard;
-            const divLB=allEntries;
+            const divLB=allEntries.filter(e=>e.division===(profile?.division||'Open'));
             const myEntry=divLB.find(e=>e.name===profile?.name);
             const myRank=myEntry?divLB.indexOf(myEntry)+1:0;
             return(<>
@@ -1524,7 +1526,7 @@ export default function App(){
         <div style={{display:'flex',gap:10,width:'100%',maxWidth:300}}>
         {(() => {
   const allE=fundraiserLeaderboard;
-  const myE=allE.find(e=>e.name===profile?.name);
+  const myE=allE.find(e=>e.name===profile?.name&&e.division===(profile?.division||'Open'));
   const completed=(myE?.roundsCompleted||0)>=4;
   return completed?(
     <div style={{display:'flex',gap:8,flex:1}}>
@@ -1569,7 +1571,7 @@ export default function App(){
             <input placeholder="Your Name" value={whoName} onChange={e=>setWhoName(e.target.value)}
               style={{background:'transparent',border:'none',borderBottom:'1px solid var(--gold)',color:'var(--text)',padding:'12px 8px',fontFamily:'Georgia,serif',fontSize:'1rem',textAlign:'center',outline:'none',letterSpacing:'1px'}}/>
             <input type="password" maxLength={4} placeholder="4-Digit PIN" value={whoPin} onChange={e=>setWhoPin(e.target.value.replace(/\D/g,'').slice(0,4))}
-              style={{background:'transparent',border:'none',borderBottom:'1px solid var(--gold)',color:'var(--text)',padding:'12px 8px',fontFamily:'Georgia,serif',fontSize:'1.4rem',textAlign:'center',outline:'none',letterSpacing:'8px'}}/>
+              style={{background:'transparent',border:'none',borderBottom:'2px solid var(--gold)',color:'var(--text)',padding:'16px 8px',fontFamily:'Georgia,serif',fontSize:'2.4rem',textAlign:'center',outline:'none',letterSpacing:'12px'}}/>
             {whoError&&<p style={{color:'var(--red)',fontSize:'0.78rem',textAlign:'center',margin:0}}>{whoError}</p>}
             <button className="btn" disabled={!whoName.trim()||whoPin.length!==4||whoLoading} onClick={async()=>{
               setWhoLoading(true);setWhoError('');
