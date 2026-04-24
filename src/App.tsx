@@ -1327,6 +1327,11 @@ export default function App(){
       }return q;
     });
     for(let i=pool.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[pool[i],pool[j]]=[pool[j],pool[i]];}
+    fetch('/questions/general_v1.json').then(r=>r.json()).then((data:any[])=>{
+      const extra=data.sort(()=>Math.random()-0.5);
+      setRoundPool([...pool,...extra]);
+      setRoundPoolIdx(0);
+    }).catch(()=>{setRoundPool(pool);setRoundPoolIdx(0);});
     return pool;
   }
 
