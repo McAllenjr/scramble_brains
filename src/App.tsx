@@ -8,9 +8,10 @@ const EXPERIENCE_LEVELS = ['Beginner','Intermediate','Advanced','Scratch'];
 
 // ─── FUNDRAISER CONFIG ────────────────────────────────────────────
 const fundraiserConfig = {
-  eventName: 'Ashlyn G. Volleyball Fundraiser',
-  categories: ['Pittsburgh'],
-  deadline: new Date('2026-04-30T12:00:00-04:00').getTime(),
+  eventName: 'Master Beta Launch',
+  categories: ['General'],
+  entryCode: '1234',
+  deadline: new Date('2026-05-04T23:59:00-04:00').getTime(),
 };
 
 function getFundraiserConfig() {
@@ -1603,16 +1604,63 @@ export default function App(){
   }
 
   if(screen==='splash')return(
-    <div className="screen center" style={{gap:0,justifyContent:'center'}}>
-      <img src="/logo.png" alt="Scramble Brains" style={{width:160,height:160,objectFit:'contain',marginBottom:32}}/>
-      <h1 style={{fontFamily:'Georgia,serif',fontSize:'clamp(2.4rem,9vw,3.8rem)',color:'var(--gold)',letterSpacing:'2px',lineHeight:1.1,textAlign:'center',marginBottom:12}}>Scramble<br/>Brains</h1>
-      <div style={{width:60,height:1,background:'var(--gold)',opacity:0.4,margin:'12px auto'}}/>
-      <p style={{fontSize:'0.72rem',letterSpacing:'4px',textTransform:'uppercase',color:'var(--muted)',marginBottom:48}}>Golf · Trivia · Strategy</p>
-      <button onClick={()=>setScreen('who')} style={{background:'transparent',border:'1px solid var(--gold)',color:'var(--gold)',padding:'14px 56px',borderRadius:2,fontFamily:'Georgia,serif',fontSize:'0.85rem',letterSpacing:'4px',textTransform:'uppercase',cursor:'pointer'}}
-        onMouseEnter={e=>{(e.target as HTMLButtonElement).style.background='var(--gold)';(e.target as HTMLButtonElement).style.color='var(--bg)';}}
-        onMouseLeave={e=>{(e.target as HTMLButtonElement).style.background='transparent';(e.target as HTMLButtonElement).style.color='var(--gold)';}}>
-        Enter
+    <div style={{minHeight:'100vh',background:'radial-gradient(ellipse at top,#0a2e1a 0%,#051208 60%,#020a05 100%)',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',padding:'24px 16px',gap:0,position:'relative',overflow:'hidden'}}>
+      {/* Background glow effects */}
+      <div style={{position:'absolute',top:'10%',left:'50%',transform:'translateX(-50%)',width:300,height:300,background:'radial-gradient(circle,rgba(200,168,75,0.08) 0%,transparent 70%)',pointerEvents:'none'}}/>
+      <div style={{position:'absolute',bottom:'20%',left:'10%',width:200,height:200,background:'radial-gradient(circle,rgba(34,139,34,0.06) 0%,transparent 70%)',pointerEvents:'none'}}/>
+
+      {/* Logo */}
+      <img src="/logo.png" alt="Scramble Brains" style={{width:130,height:130,objectFit:'contain',marginBottom:16,filter:'drop-shadow(0 0 20px rgba(200,168,75,0.3))'}}/>
+
+      {/* Title */}
+      <div style={{textAlign:'center',marginBottom:8}}>
+        <div style={{fontFamily:'Georgia,serif',fontSize:'clamp(2.8rem,10vw,4.2rem)',color:'var(--gold)',letterSpacing:'3px',lineHeight:1,textShadow:'0 0 40px rgba(200,168,75,0.4)'}}>SCRAMBLE</div>
+        <div style={{fontFamily:'Georgia,serif',fontSize:'clamp(1.4rem,5vw,2rem)',color:'rgba(200,168,75,0.7)',letterSpacing:'8px',marginTop:4}}>BRAINS</div>
+      </div>
+
+      {/* Tagline */}
+      <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:40,marginTop:8}}>
+        <div style={{height:1,width:40,background:'var(--gold)',opacity:0.3}}/>
+        <p style={{fontSize:'0.65rem',letterSpacing:'4px',textTransform:'uppercase',color:'var(--muted)',margin:0}}>Trivia · Golf · Strategy</p>
+        <div style={{height:1,width:40,background:'var(--gold)',opacity:0.3}}/>
+      </div>
+
+      {/* Main buttons */}
+      <div style={{display:'flex',gap:12,marginBottom:16,width:'100%',maxWidth:340}}>
+        {/* PLAY button */}
+        <button onClick={()=>setScreen('who')} style={{flex:2,padding:'20px 12px',background:'linear-gradient(135deg,#1a6b2e 0%,#0d3d1a 100%)',border:'2px solid #2d9e4a',borderRadius:16,cursor:'pointer',display:'flex',flexDirection:'column',alignItems:'center',gap:8,boxShadow:'0 4px 20px rgba(45,158,74,0.3),inset 0 1px 0 rgba(255,255,255,0.1)'}}>
+          <div style={{width:48,height:48,borderRadius:'50%',background:'rgba(45,158,74,0.3)',border:'2px solid #2d9e4a',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'1.6rem'}}>▶</div>
+          <div style={{fontFamily:'Georgia,serif',fontSize:'1.1rem',color:'#fff',letterSpacing:'2px',fontWeight:'bold'}}>PLAY</div>
+          <div style={{fontSize:'0.6rem',color:'rgba(255,255,255,0.5)',letterSpacing:'2px'}}>START GAME</div>
+        </button>
+
+        <div style={{display:'flex',flexDirection:'column',gap:12,flex:1}}>
+          {/* PROFILE button */}
+          <button onClick={()=>setShowProfile(true)} style={{flex:1,padding:'14px 8px',background:'linear-gradient(135deg,#1a2e6b 0%,#0d1a3d 100%)',border:'2px solid #2d4a9e',borderRadius:16,cursor:'pointer',display:'flex',flexDirection:'column',alignItems:'center',gap:4,boxShadow:'0 4px 20px rgba(45,74,158,0.3)'}}>
+            <div style={{fontSize:'1.4rem'}}>👤</div>
+            <div style={{fontFamily:'Georgia,serif',fontSize:'0.75rem',color:'#fff',letterSpacing:'2px',fontWeight:'bold'}}>PROFILE</div>
+          </button>
+
+          {/* SETTINGS button */}
+          <button onClick={()=>setScreen('settings')} style={{flex:1,padding:'14px 8px',background:'linear-gradient(135deg,#4b1a6b 0%,#2a0d3d 100%)',border:'2px solid #7e2d9e',borderRadius:16,cursor:'pointer',display:'flex',flexDirection:'column',alignItems:'center',gap:4,boxShadow:'0 4px 20px rgba(126,45,158,0.3)'}}>
+            <div style={{fontSize:'1.4rem'}}>⚙️</div>
+            <div style={{fontFamily:'Georgia,serif',fontSize:'0.75rem',color:'#fff',letterSpacing:'2px',fontWeight:'bold'}}>SETTINGS</div>
+          </button>
+        </div>
+      </div>
+
+      {/* Fundraiser quick access */}
+      <button onClick={()=>setScreen('fundraiser_menu')} style={{width:'100%',maxWidth:340,padding:'14px',background:'rgba(200,168,75,0.08)',border:'1px solid var(--gold)',borderRadius:12,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',gap:10}}>
+        <span style={{fontSize:'1.2rem'}}>🏫</span>
+        <div style={{textAlign:'left'}}>
+          <div style={{fontFamily:'Georgia,serif',fontSize:'0.9rem',color:'var(--gold)',letterSpacing:'1px'}}>Fundraiser Mode</div>
+          <div style={{fontSize:'0.6rem',color:'var(--muted)',letterSpacing:'2px',textTransform:'uppercase'}}>Compete for your cause</div>
+        </div>
+        <span style={{color:'var(--gold)',marginLeft:'auto'}}>→</span>
       </button>
+
+      {/* Version */}
+      <p style={{fontSize:'0.6rem',color:'rgba(255,255,255,0.15)',letterSpacing:'2px',marginTop:24}}>SCRAMBLE BRAINS v1.0</p>
     </div>
   );
 
@@ -1703,7 +1751,7 @@ export default function App(){
               if(!profile?.calibrated){setShowProfile(true);return;}
               setScreen('fundraiser');
             }} style={{width:'100%',padding:'20px',background:'rgba(200,168,75,0.08)',border:'1px solid var(--gold)',borderRadius:10,cursor:'pointer',textAlign:'center'}}>
-              <p style={{fontFamily:'Georgia,serif',fontSize:'1.05rem',color:'var(--gold)',marginBottom:6}}>Ashlyn G. Volleyball Fundraiser</p>
+              <p style={{fontFamily:'Georgia,serif',fontSize:'1.05rem',color:'var(--gold)',marginBottom:6}}>Master Beta Launch</p>
               <p style={{fontSize:'0.7rem',color:'var(--muted)'}}>Deadline {deadlineStr}</p>
               {profile?.division&&<p style={{fontSize:'0.7rem',color:'var(--gold)',marginTop:4}}>🏫 {profile.division}</p>}
               {!profile?.calibrated&&<p style={{fontSize:'0.7rem',color:'var(--red)',marginTop:6}}>⚠️ Profile setup required</p>}
@@ -1717,6 +1765,95 @@ export default function App(){
 
   if(screen==='landing'){
     return <div/>;
+  }
+
+  if(screen==='settings'){
+    const profile=loadProfile();
+    return(
+      <div style={{minHeight:'100vh',background:'radial-gradient(ellipse at top,#0a2e1a 0%,#051208 60%,#020a05 100%)',padding:'24px 16px'}}>
+        {/* Header */}
+        <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:24}}>
+          <div style={{fontSize:'1.8rem'}}>⚙️</div>
+          <div>
+            <div style={{fontFamily:'Georgia,serif',fontSize:'1.4rem',color:'var(--gold)',letterSpacing:'2px'}}>SETTINGS</div>
+            <div style={{fontSize:'0.65rem',color:'var(--muted)',letterSpacing:'2px'}}>Customize your experience</div>
+          </div>
+          <img src="/logo.png" alt="" style={{width:48,height:48,objectFit:'contain',marginLeft:'auto',opacity:0.8}}/>
+        </div>
+
+        {/* Account section */}
+        <div style={{marginBottom:16}}>
+          <p style={{fontSize:'0.6rem',letterSpacing:'3px',textTransform:'uppercase',color:'var(--gold)',marginBottom:10}}>Account</p>
+          <div style={{background:'var(--surface)',border:'1px solid var(--border)',borderRadius:12,overflow:'hidden'}}>
+            <div style={{padding:'16px',borderBottom:'1px solid var(--border)',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+              <div>
+                <div style={{fontFamily:'Georgia,serif',color:'var(--text)',fontSize:'0.95rem'}}>Player Name</div>
+                <div style={{fontSize:'0.7rem',color:'var(--muted)',marginTop:2}}>Your display name</div>
+              </div>
+              <div style={{fontFamily:'Georgia,serif',color:'var(--gold)',fontSize:'0.9rem'}}>{profile?.name||'Guest'}</div>
+            </div>
+            <div style={{padding:'16px',borderBottom:'1px solid var(--border)',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+              <div>
+                <div style={{fontFamily:'Georgia,serif',color:'var(--text)',fontSize:'0.95rem'}}>Division</div>
+                <div style={{fontSize:'0.7rem',color:'var(--muted)',marginTop:2}}>Your event division</div>
+              </div>
+              <div style={{fontFamily:'Georgia,serif',color:'var(--gold)',fontSize:'0.9rem'}}>{profile?.division||'—'}</div>
+            </div>
+            <div style={{padding:'16px',borderBottom:'1px solid var(--border)',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+              <div>
+                <div style={{fontFamily:'Georgia,serif',color:'var(--text)',fontSize:'0.95rem'}}>SB Index</div>
+                <div style={{fontSize:'0.7rem',color:'var(--muted)',marginTop:2}}>Your trivia handicap</div>
+              </div>
+              <div style={{fontFamily:'Georgia,serif',color:'var(--gold)',fontSize:'0.9rem'}}>{profile?.calibrated?profile.sbIndex?.toFixed(1):'Not calibrated'}</div>
+            </div>
+            <button onClick={()=>{setShowProfile(true);setScreen('splash');}} style={{width:'100%',padding:'16px',background:'transparent',border:'none',display:'flex',justifyContent:'space-between',alignItems:'center',cursor:'pointer'}}>
+              <div>
+                <div style={{fontFamily:'Georgia,serif',color:'var(--text)',fontSize:'0.95rem',textAlign:'left'}}>Edit Profile</div>
+                <div style={{fontSize:'0.7rem',color:'var(--muted)',marginTop:2,textAlign:'left'}}>Update your information</div>
+              </div>
+              <div style={{color:'var(--gold)'}}>→</div>
+            </button>
+          </div>
+        </div>
+
+        {/* Help section */}
+        <div style={{marginBottom:16}}>
+          <p style={{fontSize:'0.6rem',letterSpacing:'3px',textTransform:'uppercase',color:'var(--gold)',marginBottom:10}}>Help & Support</p>
+          <div style={{background:'var(--surface)',border:'1px solid var(--border)',borderRadius:12,overflow:'hidden'}}>
+            <button onClick={()=>setShowCategoryForm(true)} style={{width:'100%',padding:'16px',background:'transparent',border:'none',borderBottom:'1px solid var(--border)',display:'flex',justifyContent:'space-between',alignItems:'center',cursor:'pointer'}}>
+              <div>
+                <div style={{fontFamily:'Georgia,serif',color:'var(--text)',fontSize:'0.95rem',textAlign:'left'}}>🎯 Request a Category</div>
+                <div style={{fontSize:'0.7rem',color:'var(--muted)',marginTop:2,textAlign:'left'}}>Suggest new trivia topics</div>
+              </div>
+              <div style={{color:'var(--gold)'}}>→</div>
+            </button>
+            <div style={{padding:'16px',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+              <div>
+                <div style={{fontFamily:'Georgia,serif',color:'var(--text)',fontSize:'0.95rem'}}>Contact</div>
+                <div style={{fontSize:'0.7rem',color:'var(--muted)',marginTop:2}}>scramblebrains.com</div>
+              </div>
+              <div style={{color:'var(--muted)'}}>✉️</div>
+            </div>
+          </div>
+        </div>
+
+        {/* About section */}
+        <div style={{marginBottom:24}}>
+          <p style={{fontSize:'0.6rem',letterSpacing:'3px',textTransform:'uppercase',color:'var(--gold)',marginBottom:10}}>About</p>
+          <div style={{background:'var(--surface)',border:'1px solid var(--border)',borderRadius:12,padding:'16px'}}>
+            <div style={{fontFamily:'Georgia,serif',color:'var(--gold)',fontSize:'1rem',marginBottom:4}}>Scramble Brains</div>
+            <div style={{fontSize:'0.72rem',color:'var(--muted)',marginBottom:8}}>Where Trivia Meets Golf</div>
+            <div style={{fontSize:'0.65rem',color:'var(--border)',letterSpacing:'2px'}}>VERSION 1.0 · 2026</div>
+          </div>
+        </div>
+
+        {/* Bottom nav */}
+        <div style={{display:'flex',gap:10,width:'100%',maxWidth:340,margin:'0 auto'}}>
+          <button onClick={()=>setScreen('who')} style={{flex:2,padding:'16px',background:'linear-gradient(135deg,#1a6b2e 0%,#0d3d1a 100%)',border:'2px solid #2d9e4a',borderRadius:12,cursor:'pointer',fontFamily:'Georgia,serif',fontSize:'1rem',color:'#fff',letterSpacing:'2px',fontWeight:'bold'}}>▶ PLAY</button>
+          <button onClick={()=>setScreen('splash')} style={{flex:1,padding:'16px',background:'transparent',border:'1px solid var(--border)',borderRadius:12,cursor:'pointer',fontFamily:'Georgia,serif',fontSize:'0.8rem',color:'var(--muted)'}}>← Back</button>
+        </div>
+      </div>
+    );
   }
 
   if(screen==='hole_leaderboard'){
