@@ -597,6 +597,59 @@ function getProfilePool(profile:Profile|null):any[]{
 
 const SPONSOR_NAME='Your Brand';
 
+// ─── CATEGORY REQUEST FORM ────────────────────────────────────────
+function CategoryRequestForm({onClose}:{onClose:()=>void}){
+  const [category,setCategory]=useState('');
+  const [submitted,setSubmitted]=useState(false);
+  const [sending,setSending]=useState(false);
+
+  async function handleSubmit(){
+    if(!category.trim())return;
+    setSending(true);
+    try{
+      await fetch('https://formspree.io/f/mykllobo',{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({message:`Category Request: ${category}`}),
+      });
+      setSubmitted(true);
+    }catch{
+      alert('Something went wrong. Try again.');
+    }
+    setSending(false);
+  }
+
+  if(submitted)return(
+    <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.85)',zIndex:999,display:'flex',alignItems:'center',justifyContent:'center',padding:24}}>
+      <div style={{background:'var(--surface)',border:'1px solid var(--gold)',borderRadius:12,padding:32,maxWidth:320,width:'100%',textAlign:'center'}}>
+        <div style={{fontSize:'2.5rem',marginBottom:12}}>🎯</div>
+        <h2 style={{fontFamily:'Georgia,serif',color:'var(--gold)',marginBottom:8}}>Request Sent!</h2>
+        <p style={{color:'var(--muted)',fontSize:'0.88rem',marginBottom:24}}>Thanks! We'll consider adding this category to Scramble Brains.</p>
+        <button className="btn" onClick={onClose} style={{width:'100%'}}>Close</button>
+      </div>
+    </div>
+  );
+
+  return(
+    <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.85)',zIndex:999,display:'flex',alignItems:'center',justifyContent:'center',padding:24}}>
+      <div style={{background:'var(--surface)',border:'1px solid var(--gold)',borderRadius:12,padding:32,maxWidth:320,width:'100%'}}>
+        <h2 style={{fontFamily:'Georgia,serif',color:'var(--gold)',marginBottom:4,textAlign:'center'}}>Request a Category</h2>
+        <p style={{color:'var(--muted)',fontSize:'0.82rem',marginBottom:20,textAlign:'center'}}>What trivia category would you like to see added?</p>
+        <input
+          placeholder="e.g. 90s Music, NFL History, Disney..."
+          value={category}
+          onChange={e=>setCategory(e.target.value)}
+          style={{background:'transparent',border:'none',borderBottom:'1px solid var(--gold)',color:'var(--text)',padding:'12px 8px',fontFamily:'Georgia,serif',fontSize:'1rem',width:'100%',outline:'none',marginBottom:20,textAlign:'center'}}
+        />
+        <button className="btn" style={{width:'100%',marginBottom:10}} onClick={handleSubmit} disabled={!category.trim()||sending}>
+          {sending?'Sending...':'Submit Request →'}
+        </button>
+        <button onClick={onClose} style={{width:'100%',background:'transparent',border:'none',color:'var(--muted)',fontFamily:'Georgia,serif',fontSize:'0.8rem',cursor:'pointer'}}>Cancel</button>
+      </div>
+    </div>
+  );
+}
+
 // ─── HOLE GRAPHIC ─────────────────────────────────────────────────
 function HoleGraphic({holeYards,remaining,lie,par,strokes,scorecard,playerName,activePlayers,multiScores,multiHoleIdx,isMulti}:{
   holeYards:number;remaining:number;lie:string;par:number;strokes:number;
@@ -630,15 +683,7 @@ function HoleGraphic({holeYards,remaining,lie,par,strokes,scorecard,playerName,a
       {progress>0.05&&progress<0.97&&<path d={`M ${teeX+12} ${centerY} C ${teeX+60} ${centerY-4} ${ballX-40} ${ballY-4} ${ballX} ${ballY}`} fill="none" stroke="rgba(200,168,75,0.35)" strokeWidth="1.4" strokeDasharray="5,5"/>}
       {lie!=='Holed'&&<><circle cx={ballX} cy={ballY} r="6" fill="#f8f8f8" stroke="#1a1a1a" strokeWidth="1"/><circle cx={ballX-2} cy={ballY-2} r="2.2" fill="rgba(255,255,255,0.7)"/></>}
       {lie==='Holed'&&<text x="289" y={centerY+4} textAnchor="middle" fontSize={12} fill="#c8a84b">⛳</text>}
-      <rect x="0" y="0" width={W} height="15" fill="rgba(0,0,0,0.88)"/>
-      <text x="7" y="10" fontSize={7} fill="#c8a84b" fontFamily="Georgia,serif">HOLE {COURSE[scorecard.length]?.number||'—'}</text>
-      <text x="46" y="10" fontSize={7} fill="rgba(255,255,255,0.4)" fontFamily="Georgia,serif">PAR {par}</text>
-      <text x="77" y="10" fontSize={6.5} fill="rgba(255,255,255,0.35)" fontFamily="Georgia,serif">YDS {holeYards}</text>
-      <text x="117" y="10" fontSize={6.5} fill="rgba(255,255,255,0.35)" fontFamily="Georgia,serif">TO GO</text>
-      <text x="144" y="10" fontSize={7} fill="#c8a84b" fontFamily="Georgia,serif">{toGoStr}</text>
-      <text x="169" y="10" fontSize={6.5} fill="rgba(255,255,255,0.35)" fontFamily="Georgia,serif">SCORE</text>
-      <text x="198" y="10" fontSize={7} fill={scoreColor} fontFamily="Georgia,serif">{scoreStr}</text>
-      <text x="215" y="10" fontSize={6.5} fill="rgba(255,255,255,0.35)" fontFamily="Georgia,serif">{lieStr}</text>
+      
       <rect x="0" y="125" width={W} height="15" fill="rgba(0,0,0,0.92)"/>
       <rect x="0" y="125" width="60" height="15" fill="#c8a84b"/>
       <text x="4" y="135" fontSize={6.5} fill="#061008" fontFamily="Georgia,serif">LEADERBOARD</text>
@@ -1215,6 +1260,7 @@ export default function App(){
   const [whoError,setWhoError]=useState('');
   const [whoLoading,setWhoLoading]=useState(false);
   const [showProfile,setShowProfile]=useState(false);
+  const [showCategoryForm,setShowCategoryForm]=useState(false);
   const [showPicker,setShowPicker]=useState(false);
   const [isGuest,setIsGuest]=useState(false);
   const [fundraiserCorrect,setFundraiserCorrect]=useState(0);
@@ -1414,7 +1460,7 @@ export default function App(){
       onBack={()=>{setShowPicker(false);setScreen('modes');}}
     />
   );
-
+  if(showCategoryForm)return<CategoryRequestForm onClose={()=>setShowCategoryForm(false)}/>;
   if(showProfile)return(
     <ProfileScreen
       onBack={()=>{setShowProfile(false);setScreen('modes');}}
@@ -1631,7 +1677,8 @@ export default function App(){
             <button onClick={()=>setShowProfile(true)} style={{flex:1,background:'transparent',border:'1px solid var(--border)',color:'var(--muted)',padding:'11px',borderRadius:8,fontFamily:'Georgia,serif',fontSize:'0.78rem',cursor:'pointer'}}>✏️ Profile</button>
           </div>
         </div>
-        <button onClick={()=>setScreen('who')} style={{background:'transparent',border:'none',color:'var(--muted)',fontFamily:'Georgia,serif',fontSize:'0.8rem',cursor:'pointer',marginTop:20}}>← Back</button>
+        <button onClick={()=>setShowCategoryForm(true)} style={{background:'transparent',border:'1px solid var(--border)',color:'var(--muted)',padding:'10px',borderRadius:8,fontFamily:'Georgia,serif',fontSize:'0.78rem',cursor:'pointer',marginTop:4,width:'100%',maxWidth:300}}>🎯 Request a Category</button>
+        <button onClick={()=>setScreen('who')} style={{background:'transparent',border:'none',color:'var(--muted)',fontFamily:'Georgia,serif',fontSize:'0.8rem',cursor:'pointer',marginTop:12}}>← Back</button>
       </div>
     );
   }
@@ -1872,7 +1919,7 @@ export default function App(){
         ))}
         <div className="sc"><span className="sc-label">Wind</span><span className="sc-val" style={{fontSize:'0.78rem'}}>{wind.speed===0?'—':`${WIND_ARROWS[wind.dir]}${wind.speed}`}</span></div>
       </div>
-      <HoleGraphic holeYards={hole.yards} remaining={remaining} lie={lie} par={hole.par} strokes={strokes} scorecard={scorecard} playerName={playerName} isMulti={false}/>
+      <HoleGraphic holeYards={hole.yards} remaining={remaining} lie={lie} par={hole.par} strokes={strokes} scorecard={scorecard} playerName={playerName} isMulti={false} showHeader={false}/>
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10}}>
         <p className="phase-label" style={{margin:0}}>{hole.name} · {bucket} · {remaining>20?`${remaining} yards`:`${remaining} feet`} to go</p>
         <button onClick={()=>setScreen('start')} style={{background:'transparent',border:'1px solid var(--border)',color:'var(--muted)',padding:'4px 10px',borderRadius:6,fontSize:'0.75rem',cursor:'pointer'}}>✕ Exit</button>
