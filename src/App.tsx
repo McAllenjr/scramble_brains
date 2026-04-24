@@ -1883,8 +1883,43 @@ export default function App(){
       {phase==='club'&&<>
         <p className="phase-label">Select Your Club</p>
         {wind.speed>0&&<p style={{fontSize:'0.72rem',color:'var(--muted)',marginBottom:8,textAlign:'center'}}>{WIND_ARROWS[wind.dir]} {wind.speed} mph {wind.dir} wind{['S','SW','SE'].includes(wind.dir)?' — tailwind':['N'].includes(wind.dir)?' — headwind':' — crosswind'}</p>}
-        <div className="strategy-row">
-          {availableClubs.map(c=><button key={c} className="strat-btn" onClick={()=>chooseClub(c)}>{CLUBS[c].emoji} {CLUBS[c].name}<span style={{display:'block',fontSize:'0.75rem',color:'var(--muted)',marginTop:3}}>~{CLUBS[c].yards} yds</span></button>)}
+        <div style={{display:'flex',flexDirection:'column',gap:12,width:'100%',maxWidth:340,margin:'0 auto'}}>
+          {availableClubs.map(c=>(
+            <button key={c} onClick={()=>chooseClub(c)} style={{
+              background:'linear-gradient(135deg,#0d2414 0%,#1a3d20 100%)',
+              border:'1px solid var(--gold)',
+              borderRadius:12,
+              padding:'16px 20px',
+              display:'flex',
+              alignItems:'center',
+              justifyContent:'space-between',
+              cursor:'pointer',
+              width:'100%',
+            }}>
+              <div style={{display:'flex',alignItems:'center',gap:14}}>
+                <div style={{
+                  width:44,
+                  height:44,
+                  borderRadius:'50%',
+                  background:'rgba(200,168,75,0.15)',
+                  border:'1px solid var(--gold)',
+                  display:'flex',
+                  alignItems:'center',
+                  justifyContent:'center',
+                  fontSize:'1.4rem',
+                  flexShrink:0,
+                }}>🏌️</div>
+                <div style={{textAlign:'left'}}>
+                  <div style={{fontFamily:'Georgia,serif',fontSize:'1.1rem',color:'var(--gold)',letterSpacing:'1px'}}>{CLUBS[c].name}</div>
+                  <div style={{fontSize:'0.7rem',letterSpacing:'2px',textTransform:'uppercase',color:'var(--muted)',marginTop:2}}>Standard Club</div>
+                </div>
+              </div>
+              <div style={{textAlign:'right'}}>
+                <div style={{fontFamily:'Georgia,serif',fontSize:'1.4rem',color:'var(--text)',fontWeight:'bold'}}>~{CLUBS[c].yards}</div>
+                <div style={{fontSize:'0.65rem',letterSpacing:'2px',textTransform:'uppercase',color:'var(--muted)'}}>yards</div>
+              </div>
+            </button>
+          ))}
         </div>
       </>}
       {phase==='question'&&picked===null&&timeLeft!==null&&<div className="timer-wrap"><div className={`timer-bar ${timeLeft<=5?'danger':''}`} style={{width:`${(timeLeft/TIMER_SECONDS)*100}%`}}/><span className={`timer-label ${timeLeft<=5?'danger':''}`}>{timeLeft}s</span></div>}
