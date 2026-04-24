@@ -1335,10 +1335,19 @@ export default function App(){
     return pool;
   }
 
-  function startRound(){
+  async function startRound(){
     if(!playerNames[0].trim())return;
     if(isMulti){startMultiRound();return;}
-    const pool=buildRoundPool();
+    const profile=loadProfile();
+    let pool:any[]=[];
+    try{
+      const res=await fetch('/questions/general_v1.json');
+      const data=await res.json();
+      const golfQ=Object.values(QUESTIONS).flat() as any[];
+      pool=[...data,...golfQ].sort(()=>Math.random()-0.5);
+    }catch{
+      pool=isGuest||!profile||!profile.questionnaire?Object.values(QUESTIONS).flat() as any[]:getProfilePool(profile);
+    }
     setRoundPool(pool);setRoundPoolIdx(0);setRoundCorrect(0);setRoundTotal(0);
     setScreen('game');setHoleIdx(0);setScorecard([]);resetHole(0);
   }
