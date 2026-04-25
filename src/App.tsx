@@ -813,14 +813,14 @@ function ProfilePickerScreen({onSelect,onNew,onBack}:{onSelect:(p:Profile)=>void
             <button key={name} onClick={()=>attemptSelect(name)} style={{background:'var(--surface)',border:'1px solid var(--border)',borderRadius:10,padding:'12px 16px',display:'flex',alignItems:'center',justifyContent:'space-between',cursor:'pointer'}}>
               <div style={{display:'flex',alignItems:'center',gap:10}}>
                 <AvatarDisplay avatar={p.avatar} size="sm" />
-              <div style={{textAlign:'left'}}>
-                <div style={{fontFamily:'Georgia,serif',color:'var(--gold)',fontSize:'1rem'}}>{name}</div>
-                <div style={{fontSize:'0.7rem',color:'var(--muted)',marginTop:2}}>
-                  {p.division?`🏫 ${p.division}`:p.courseTier?`📍 ${p.courseTier} Tee`:'No tier set'}
-                  {p.calibrated?` · SBI ${p.sbIndex?.toFixed(1)}`:''}
+                <div style={{textAlign:'left'}}>
+                  <div style={{fontFamily:'Georgia,serif',color:'var(--gold)',fontSize:'1rem'}}>{name}</div>
+                  <div style={{fontSize:'0.7rem',color:'var(--muted)',marginTop:2}}>
+                    {p.division?`🏫 ${p.division}`:p.courseTier?`📍 ${p.courseTier} Tee`:'No tier set'}
+                    {p.calibrated?` · SBI ${p.sbIndex?.toFixed(1)}`:''}
+                  </div>
                 </div>
               </div>
-              </div></div>
               <div style={{fontSize:'0.75rem',color:'var(--muted)'}}>{p.pin?'🔒':'→'}</div>
             </button>
           );
