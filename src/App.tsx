@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { AvatarCustomizer, AvatarDisplay, DEFAULT_AVATAR, AvatarConfig } from './AvatarCustomizer.tsx';
 import { corbQuestions } from './corbQuestions';
 import { easyQuestions } from './easyQuestions';
 import { supabase, cloudSaveProfile, cloudCreateProfile, cloudCheckNameExists, cloudLoadProfile } from './supabase';
@@ -31,6 +32,7 @@ type Profile = {
   roundsPlayed:number; correctAnswers:number; totalAnswers:number;
   questionnaire?:Questionnaire; courseTier?:string; pin?:string;
   division?:string; sbIndex?:number; calibrated?:boolean; eventPar?:number;
+  avatar?:AvatarConfig;
 };
 
 // ─── MULTI-PROFILE STORAGE ────────────────────────────────────────
@@ -809,6 +811,8 @@ function ProfilePickerScreen({onSelect,onNew,onBack}:{onSelect:(p:Profile)=>void
           const p=profiles[name];
           return(
             <button key={name} onClick={()=>attemptSelect(name)} style={{background:'var(--surface)',border:'1px solid var(--border)',borderRadius:10,padding:'12px 16px',display:'flex',alignItems:'center',justifyContent:'space-between',cursor:'pointer'}}>
+              <div style={{display:'flex',alignItems:'center',gap:10}}>
+                <AvatarDisplay avatar={p.avatar} size="sm" />
               <div style={{textAlign:'left'}}>
                 <div style={{fontFamily:'Georgia,serif',color:'var(--gold)',fontSize:'1rem'}}>{name}</div>
                 <div style={{fontSize:'0.7rem',color:'var(--muted)',marginTop:2}}>
@@ -816,6 +820,7 @@ function ProfilePickerScreen({onSelect,onNew,onBack}:{onSelect:(p:Profile)=>void
                   {p.calibrated?` · SBI ${p.sbIndex?.toFixed(1)}`:''}
                 </div>
               </div>
+              </div></div>
               <div style={{fontSize:'0.75rem',color:'var(--muted)'}}>{p.pin?'🔒':'→'}</div>
             </button>
           );
@@ -883,7 +888,7 @@ function ProfileScreen({onBack,onSwitchPlayer}:{onBack:()=>void;onSwitchPlayer:(
   const [pin,setPin]=useState(profile?.pin||'');
   const [pinError,setPinError]=useState('');
   const [cloudSyncing,setCloudSyncing]=useState(false);
-  
+  const [showAvatarStudio,setShowAvatarStudio]=useState(false);
   const [ptaDivision,setPtaDivision]=useState(profile?.division||'');
 
   async function handleSave(){
@@ -916,6 +921,13 @@ function ProfileScreen({onBack,onSwitchPlayer}:{onBack:()=>void;onSwitchPlayer:(
     saveProfile(updated);setProfile(updated);setMode('view');
   }
 
+  function handleAvatarSave(updated:PlayerProfile){
+    const p={...profile!,...updated};
+    saveProfile(p as Profile);setProfile(p as Profile);
+    if(p.pin) cloudSaveProfile(p as Profile,p.pin).catch(()=>{});
+    setShowAvatarStudio(false);
+  }
+
   function handleDelete(){
     const profiles=loadProfiles();
     if(profile)delete profiles[profile.name];
@@ -928,6 +940,17 @@ function ProfileScreen({onBack,onSwitchPlayer}:{onBack:()=>void;onSwitchPlayer:(
   const inputStyle:any={background:'transparent',border:'none',borderBottom:'1px solid var(--gold)',color:'var(--text)',padding:'10px 8px',fontFamily:'Georgia,serif',fontSize:'0.95rem',width:'100%',outline:'none',marginBottom:14};
   const tierColors:Record<string,string>={Championship:'#c8a84b',Advanced:'#3fa36b',Intermediate:'#4a90d9',Recreational:'#9b59b6',Beginner:'#7a9485'};
 
+  if(showAvatarStudio)return(
+    <div style={{width:'100%',height:'100vh'}}>
+      <AvatarCustomizer
+        profile={profile||{}}
+        supabase={supabase}
+        onSave={handleAvatarSave}
+        onClose={()=>setShowAvatarStudio(false)}
+      />
+    </div>
+  );
+
   if(mode==='calibration')return<CalibrationScreen onComplete={handleCalibrationComplete}/>;
   if(mode==='questionnaire')return<QuestionnaireScreen existing={loadQuestionnaire()} onComplete={handleQuestionnaireComplete} onSkip={()=>setMode('view')}/>;
 
@@ -935,8 +958,9 @@ function ProfileScreen({onBack,onSwitchPlayer}:{onBack:()=>void;onSwitchPlayer:(
     const tierColor=tierColors[profile.courseTier||'Intermediate'];
     return(
       <div className="screen center">
-        <div style={{width:60,height:60,borderRadius:'50%',border:'2px solid var(--gold)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'1.6rem',marginBottom:16,background:'radial-gradient(circle,#1a2e20 0%,var(--bg) 100%)'}}>🏌️</div>
-        <h2 style={{fontFamily:'Georgia,serif',color:'var(--gold)',marginBottom:4}}>{profile.name}</h2>
+        <div style={{marginBottom:16,cursor:'pointer'}} onClick={()=>setShowAvatarStudio(true)}>
+          <AvatarDisplay avatar={profile.avatar} size="lg" playerName={profile.name} />
+        </div>
         <p style={{fontSize:'0.72rem',letterSpacing:'3px',textTransform:'uppercase',color:'var(--muted)',marginBottom:4}}>{profile.experience} · Scramble Brains Player</p>
         {profile.division&&<p style={{fontSize:'0.72rem',color:'var(--gold)',marginBottom:4}}>🏫 {profile.division}</p>}
         {profile.courseTier&&<p style={{fontSize:'0.72rem',letterSpacing:'2px',color:tierColor,marginBottom:20}}>📍 {profile.courseTier} Tee</p>}
@@ -999,6 +1023,7 @@ function ProfileScreen({onBack,onSwitchPlayer}:{onBack:()=>void;onSwitchPlayer:(
           </div>
         )}
         <div style={{display:'flex',gap:10,width:'100%',maxWidth:300,flexWrap:'wrap'}}>
+        <button className="btn" style={{width:'100%',background:'rgba(200,168,75,0.1)',border:'1px solid var(--gold)',color:'var(--gold)'}} onClick={()=>setShowAvatarStudio(true)}>🎨 Customize Avatar</button>
           <button className="btn" style={{flex:1}} onClick={()=>{setName(profile.name);setExperience(profile.experience);setPin(profile.pin||'');setMode('create');}}>Edit Profile</button>
           <button className="btn" style={{flex:1,background:'transparent',color:'var(--muted)',borderColor:'var(--border)'}} onClick={onBack}>← Back</button>
           <button className="btn" style={{width:'100%',background:'transparent',color:'var(--gold)',border:'1px solid var(--gold)'}} onClick={()=>setMode('questionnaire')}>🎯 Retake Interest Profile</button>
@@ -2051,6 +2076,9 @@ export default function App(){
   return(
     <div className="screen">
       <div className="scoreboard">
+        <div className="sc" style={{padding:'2px 4px'}}>
+          <AvatarDisplay avatar={loadProfile()?.avatar} size="sm" />
+        </div>
         {[['Hole',`${hole.number}/18`],['Par',hole.par],['Strokes',strokes],['Lie',lie],['To Go',remaining>20?`${remaining}yd`:remaining>0?`${remaining}ft`:'—']].map(([l,v])=>(
           <div className="sc" key={String(l)}><span className="sc-label">{l}</span><span className="sc-val">{v}</span></div>
         ))}
