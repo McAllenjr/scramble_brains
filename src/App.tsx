@@ -1,12 +1,32 @@
 import { useState, useEffect, useRef } from 'react';
-import { AvatarCustomizer, AvatarDisplay, DEFAULT_AVATAR, AvatarConfig } from './AvatarCustomizer.tsx';
 import { corbQuestions } from './corbQuestions';
 import { easyQuestions } from './easyQuestions';
 import { supabase, cloudSaveProfile, cloudCreateProfile, cloudCheckNameExists, cloudLoadProfile } from './supabase';
-
+ 
 const TIMER_SECONDS = 15;
 const EXPERIENCE_LEVELS = ['Beginner','Intermediate','Advanced','Scratch'];
-
+ 
+type ProfileQuestion = {
+  id: string;
+  title: string;
+  subtitle?: string;
+  multi: boolean;
+  options: string[];
+};
+ 
+const PROFILE_QUESTIONS: ProfileQuestion[] = [
+  { id:'ageGroup', title:'Age Group', multi:false, options:['6-8','9-12','13-17','18-25','26-40','40+'] },
+  { id:'triviaConfidence', title:'Trivia Confidence', multi:false, options:['Beginner','Casual','Solid','Expert'] },
+  { id:'favoriteSports', title:'Favorite Sports', multi:true, options:['Football','Basketball','Baseball','Hockey','Golf','Soccer','Wrestling','Volleyball','None'] },
+  { id:'entertainment', title:'Entertainment', multi:true, options:['Movies','TV','Music','Celebrities','YouTube','Games','Internet'] },
+  { id:'schoolSubjects', title:'Subjects', multi:true, options:['Math','Science','History','Geography','Reading','Food','Random'] },
+  { id:'localInterest', title:'Local Interest', multi:true, options:['Pittsburgh','PA','USA','World','None'] },
+  { id:'popCultureEra', title:'Era', multi:true, options:['80s','90s','2000s','2010s','Current'] },
+  { id:'playStyle', title:'Play Style', multi:false, options:['Fast','Balanced','Careful'] },
+  { id:'competitiveLevel', title:'Competitive Level', multi:false, options:['Fun','Casual','Competitive','Serious'] },
+  { id:'avoidTopics', title:'Avoid Topics', multi:true, options:['Sports','Math','Science','History','Geography','Pop Culture','Local','None'] },
+];
+ 
 // ─── FUNDRAISER CONFIG ────────────────────────────────────────────
 const fundraiserConfig = {
   eventName: 'Master Beta Launch',
@@ -14,27 +34,26 @@ const fundraiserConfig = {
   entryCode: '1234',
   deadline: new Date('2026-05-04T23:59:00-04:00').getTime(),
 };
-
+ 
 function getFundraiserConfig() {
   try { const r = localStorage.getItem('sb_fundraiser_config'); return r ? JSON.parse(r) : fundraiserConfig; } catch { return fundraiserConfig; }
 }
 function isFundraiserExpired(): boolean { return Date.now() > getFundraiserConfig().deadline; }
-
+ 
 // ─── TYPES ────────────────────────────────────────────────────────
 type Questionnaire = {
   q1:string; q2:string; q3:string; q4:string; q5:string;
   q6:string; q7:string; q8:string; q9:string; q10:string;
 };
-
+ 
 type Profile = {
   name:string; experience:string; favCats:string[];
-  owgtr:number; triviaHandicap:number; sbr:number;
+  owsbr:number; triviaHandicap:number; sbr:number;
   roundsPlayed:number; correctAnswers:number; totalAnswers:number;
   questionnaire?:Questionnaire; courseTier?:string; pin?:string;
   division?:string; sbIndex?:number; calibrated?:boolean; eventPar?:number;
-  avatar?:AvatarConfig;
 };
-
+ 
 // ─── MULTI-PROFILE STORAGE ────────────────────────────────────────
 function loadProfiles(): Record<string, Profile> {
   try { const r = localStorage.getItem('sb_profiles'); return r ? JSON.parse(r) : {}; } catch { return {}; }
@@ -45,10 +64,9 @@ function saveProfiles(profiles: Record<string, Profile>) {
 function loadActiveProfileName(): string | null { return localStorage.getItem('sb_active_profile'); }
 function saveActiveProfileName(name: string) { localStorage.setItem('sb_active_profile', name); }
 function removeActiveProfile() { localStorage.removeItem('sb_active_profile'); }
-
+ 
 function loadProfile(): Profile | null {
   try {
-    // Support both old single-profile and new multi-profile
     const name = loadActiveProfileName();
     if (name) {
       const profiles = loadProfiles();
@@ -68,7 +86,7 @@ function loadProfile(): Profile | null {
     return null;
   } catch { return null; }
 }
-
+ 
 function saveProfile(p: Profile) {
   try {
     const profiles = loadProfiles();
@@ -77,13 +95,14 @@ function saveProfile(p: Profile) {
     saveActiveProfileName(p.name);
   } catch {}
 }
-
+ 
 function loadQuestionnaire(): Questionnaire | null {
   try { const s = localStorage.getItem('sb_questionnaire'); return s ? JSON.parse(s) : null; } catch { return null; }
 }
 function saveQuestionnaire(q: Questionnaire) {
   try { localStorage.setItem('sb_questionnaire', JSON.stringify(q)); } catch {}
 }
+ 
 type FundraiserLeaderboardEntry = {
   id: string;
   name: string;
@@ -97,7 +116,7 @@ type FundraiserLeaderboardEntry = {
   accuracy: number;
   completedAt: number;
 };
-
+ 
 async function loadFundraiserLeaderboard(eventName: string): Promise<FundraiserLeaderboardEntry[]> {
   try {
     const { data, error } = await supabase
@@ -105,9 +124,9 @@ async function loadFundraiserLeaderboard(eventName: string): Promise<FundraiserL
       .select('*')
       .eq('event_name', eventName)
       .order('total_score_vs_par', { ascending: true });
-
+ 
     if (error || !data) return [];
-
+ 
     return data.map((r: any) => ({
       id: r.id,
       name: r.name,
@@ -125,7 +144,7 @@ async function loadFundraiserLeaderboard(eventName: string): Promise<FundraiserL
     return [];
   }
 }
-
+ 
 async function saveFundraiserLeaderboard(
   eventName: string,
   entries: FundraiserLeaderboardEntry[]
@@ -148,7 +167,7 @@ async function saveFundraiserLeaderboard(
     }
   } catch {}
 }
-
+ 
 async function updateFundraiserLeaderboard(
   eventName: string,
   profile: Profile,
@@ -158,13 +177,13 @@ async function updateFundraiserLeaderboard(
   roundScoreVsPar: number
 ) {
   const entries = await loadFundraiserLeaderboard(eventName);
-
+ 
   const existingIndex = entries.findIndex(
     (entry) =>
       entry.name.toLowerCase().trim() === profile.name.toLowerCase().trim() &&
       entry.division === (profile.division || 'Open')
   );
-
+ 
   if (existingIndex >= 0 && entries[existingIndex].roundsCompleted >= 4) {
     const currentProfile = loadProfile();
     if (currentProfile) {
@@ -178,10 +197,9 @@ async function updateFundraiserLeaderboard(
     }
     return;
   }
-
+ 
   if (existingIndex >= 0) {
     const existing = entries[existingIndex];
-
     entries[existingIndex] = {
       ...existing,
       roundsCompleted: existing.roundsCompleted + 1,
@@ -213,23 +231,17 @@ async function updateFundraiserLeaderboard(
       completedAt: Date.now(),
     });
   }
-
+ 
   entries.sort((a, b) => {
-    if (a.roundsCompleted !== b.roundsCompleted) {
-      return b.roundsCompleted - a.roundsCompleted;
-    }
-    if (a.totalScore !== b.totalScore) {
-      return a.totalScore - b.totalScore;
-    }
-    if (b.totalCorrect !== a.totalCorrect) {
-      return b.totalCorrect - a.totalCorrect;
-    }
+    if (a.roundsCompleted !== b.roundsCompleted) return b.roundsCompleted - a.roundsCompleted;
+    if (a.totalScore !== b.totalScore) return a.totalScore - b.totalScore;
+    if (b.totalCorrect !== a.totalCorrect) return b.totalCorrect - a.totalCorrect;
     return b.completedAt - a.completedAt;
   });
-
+ 
   await saveFundraiserLeaderboard(eventName, entries);
 }
-
+ 
 // ─── QUESTIONNAIRE DATA ───────────────────────────────────────────
 const QUESTIONS_Q = [
   { id:'q1', question:'How often do you play golf?', options:['Every day / Multiple times a week','Once a week','Occasionally','Never'] },
@@ -243,7 +255,7 @@ const QUESTIONS_Q = [
   { id:'q9', question:'How would you rate your general trivia knowledge?', options:['Expert — I win every time','Above average — I hold my own','Average — I know a little of everything','Beginner — I\'m here to learn'] },
   { id:'q10', question:'What pop culture era are you most knowledgeable in?', options:['60s / 70s / 80s','90s / Early 2000s','2010s / Current','I don\'t follow pop culture'] },
 ];
-
+ 
 // ─── CALIBRATION ──────────────────────────────────────────────────
 const CALIBRATION_QUESTIONS = [
   { text:'How many players are on a basketball team on the court?', answers:['4','5','6','7'], correct:1 },
@@ -257,7 +269,7 @@ const CALIBRATION_QUESTIONS = [
   { text:'What is the approximate speed of light?', answers:['150,000 km/s','300,000 km/s','450,000 km/s','600,000 km/s'], correct:1 },
   { text:'Which element has atomic number 79?', answers:['Silver','Platinum','Gold','Copper'], correct:2 },
 ];
-
+ 
 function calcSBIndex(correct:number, total:number, avgTime:number): number {
   const acc = correct/total;
   let base = acc>0.9?4:acc>=0.75?8:acc>=0.6?12:acc>=0.45?18:24;
@@ -280,7 +292,7 @@ function getFundraiserFeedback(isCorrect:boolean,difficulty:string):string {
   if(isCorrect){if(difficulty==='hard')return'🦅 Eagle!';if(difficulty==='medium')return'🐦 Birdie!';return'✅ Par!';}
   if(difficulty==='hard')return'🎯 Double Bogey.';if(difficulty==='medium')return'⛳ Bogey.';return'📌 Bogey.';
 }
-
+ 
 // ─── HANDICAP CALCULATOR ─────────────────────────────────────────
 function calcSBR(q:Questionnaire):number {
   let a=0;
@@ -289,47 +301,64 @@ function calcSBR(q:Questionnaire):number {
   if(q.q9==='Expert — I win every time')t=300;else if(q.q9==='Above average — I hold my own')t=150;else if(q.q9==='Average — I know a little of everything')t=50;
   return Math.min(1800,a+t);
 }
-
-function calcHandicapFromQ(q:Questionnaire):{handicap:number;tier:string;owgtr:number} {
+ 
+function calcHandicapFromQ(q:Questionnaire):{handicap:number;tier:string;owsbr:number} {
   let s=0;
   if(q.q1==='Every day / Multiple times a week')s+=4;else if(q.q1==='Once a week')s+=3;else if(q.q1==='Occasionally')s+=2;else s+=1;
   if(q.q2==='Private / Country Club')s+=4;else if(q.q2==='Semi-private')s+=3;else if(q.q2==='Public / Municipal')s+=2;else s+=1;
   if(q.q3==='Scratch or better (0 and under)')s+=5;else if(q.q3==='Low (1–9)')s+=4;else if(q.q3==='Mid (10–18)')s+=3;else if(q.q3==='High (19–36+)')s+=2;else s+=1;
   if(q.q9==='Expert — I win every time')s+=4;else if(q.q9==='Above average — I hold my own')s+=3;else if(q.q9==='Average — I know a little of everything')s+=2;else s+=1;
-  let handicap:number,tier:string,owgtr:number;
-  if(s>=15){handicap=2;tier='Championship';owgtr=1800;}
-  else if(s>=12){handicap=8;tier='Advanced';owgtr=1400;}
-  else if(s>=9){handicap=16;tier='Intermediate';owgtr=1000;}
-  else if(s>=6){handicap=24;tier='Recreational';owgtr=700;}
-  else{handicap=36;tier='Beginner';owgtr=500;}
-  return{handicap,tier,owgtr};
+  let handicap:number,tier:string,owsbr:number;
+  if(s>=15){handicap=2;tier='Championship';owsbr=1800;}
+  else if(s>=12){handicap=8;tier='Advanced';owsbr=1400;}
+  else if(s>=9){handicap=16;tier='Intermediate';owsbr=1000;}
+  else if(s>=6){handicap=24;tier='Recreational';owsbr=700;}
+  else{handicap=36;tier='Beginner';owsbr=500;}
+  return{handicap,tier,owsbr};
 }
-
+ 
 // ─── RANKING SYSTEM ──────────────────────────────────────────────
 const TIER_EXPECTED_PCT:Record<string,number>={Championship:0.85,Advanced:0.70,Intermediate:0.55,Recreational:0.40,Beginner:0.25};
-
-function calcProjectedRanking(profile:Profile,roundCorrect:number,roundTotal:number):{projectedHandicap:number;projectedOwgtr:number;movement:string} {
-  if(roundTotal===0)return{projectedHandicap:profile.triviaHandicap,projectedOwgtr:profile.owgtr,movement:'none'};
+ 
+// FIX: was mixing owsbrChange / owgtrChange — now consistently owsbrChange throughout
+function calcProjectedRanking(profile:Profile,roundCorrect:number,roundTotal:number):{projectedHandicap:number;projectedOwsbr:number;movement:string} {
+  if(roundTotal===0)return{projectedHandicap:profile.triviaHandicap,projectedOwsbr:profile.owsbr,movement:'none'};
   const pct=roundCorrect/roundTotal,expected=TIER_EXPECTED_PCT[profile.courseTier||'Intermediate']||0.55,diff=pct-expected;
-  let hcpChange=0,owgtrChange=0;
-  if(diff>0.15){hcpChange=-2;owgtrChange=75;}else if(diff>0.05){hcpChange=-1;owgtrChange=35;}
-  else if(diff<-0.15){hcpChange=2;owgtrChange=-75;}else if(diff<-0.05){hcpChange=1;owgtrChange=-35;}
-  return{projectedHandicap:Math.max(0,Math.min(36,profile.triviaHandicap+hcpChange)),projectedOwgtr:Math.max(100,profile.owgtr+owgtrChange),movement:hcpChange<0?'improved':hcpChange>0?'declined':'held'};
+  let hcpChange=0,owsbrChange=0;
+  if(diff>0.15){hcpChange=-2;owsbrChange=75;}
+  else if(diff>0.05){hcpChange=-1;owsbrChange=35;}
+  else if(diff<-0.15){hcpChange=2;owsbrChange=-75;}
+  else if(diff<-0.05){hcpChange=1;owsbrChange=-35;}
+  return{
+    projectedHandicap:Math.max(0,Math.min(36,profile.triviaHandicap+hcpChange)),
+    projectedOwsbr:Math.max(100,profile.owsbr+owsbrChange),
+    movement:hcpChange<0?'improved':hcpChange>0?'declined':'held'
+  };
 }
-
+ 
 function getNextTuesdayNoon():Date {
   const now=new Date(),et=new Date(now.toLocaleString('en-US',{timeZone:'America/New_York'})),day=et.getDay(),dtu=(2-day+7)%7||7,next=new Date(et);
   next.setDate(et.getDate()+dtu);next.setHours(12,0,0,0);return next;
 }
-
+ 
 // ─── CLUBS & COURSE ──────────────────────────────────────────────
 const CLUBS:any={
-  driver:{name:'Driver',yards:230,emoji:'🏌️'},wood3:{name:'3-Wood',yards:210,emoji:'🌲'},wood5:{name:'5-Wood',yards:195,emoji:'🌲'},
-  hybrid4:{name:'4-Hybrid',yards:180,emoji:'🔧'},iron4:{name:'4-Iron',yards:170,emoji:'⛳'},iron5:{name:'5-Iron',yards:160,emoji:'⛳'},
-  iron6:{name:'6-Iron',yards:150,emoji:'⛳'},iron7:{name:'7-Iron',yards:140,emoji:'⛳'},iron8:{name:'8-Iron',yards:130,emoji:'⛳'},
-  iron9:{name:'9-Iron',yards:120,emoji:'⛳'},pw:{name:'Pitching Wedge',yards:105,emoji:'🪁'},gw:{name:'Gap Wedge',yards:90,emoji:'🪁'},
-  sw:{name:'Sand Wedge',yards:75,emoji:'🏖️'},lw:{name:'Lob Wedge',yards:60,emoji:'🏖️'},wedge64:{name:'64° Wedge',yards:45,emoji:'🏖️'},
-  putter:{name:'Putter',yards:0,emoji:'🏳️'},
+  driver:  {name:'Driver',         yards:230, tip:'Max distance off the tee'},
+  wood3:   {name:'3-Wood',         yards:210, tip:'Long fairway shot'},
+  wood5:   {name:'5-Wood',         yards:195, tip:'Reliable long distance'},
+  hybrid4: {name:'4-Hybrid',       yards:180, tip:'Easy to hit from rough or fairway'},
+  iron4:   {name:'4-Iron',         yards:170, tip:'Long iron — needs a clean strike'},
+  iron5:   {name:'5-Iron',         yards:160, tip:'Mid-range approach'},
+  iron6:   {name:'6-Iron',         yards:150, tip:'Accurate mid-range iron'},
+  iron7:   {name:'7-Iron',         yards:140, tip:'Most forgiving iron'},
+  iron8:   {name:'8-Iron',         yards:130, tip:'Short approach shot'},
+  iron9:   {name:'9-Iron',         yards:120, tip:'Close approach — high and soft'},
+  pw:      {name:'Pitching Wedge', yards:105, tip:'Inside 110 yards'},
+  gw:      {name:'Gap Wedge',      yards:90,  tip:'Fills the gap between wedges'},
+  sw:      {name:'Sand Wedge',     yards:75,  tip:'From bunkers or short chips'},
+  lw:      {name:'Lob Wedge',      yards:60,  tip:'High soft shot — stops quickly'},
+  wedge64: {name:'64° Wedge',      yards:45,  tip:'Ultra-short — near the green'},
+  putter:  {name:'Putter',         yards:0,   tip:'On the green — roll it in'},
 };
 
 const COURSE=[
@@ -355,6 +384,11 @@ function getBucket(r:number){return r>160?'Long Shot':r>120?'Long Approach':r>75
 function rand(min:number,max:number){return Math.floor(Math.random()*(max-min+1))+min;}
 const WIND_DIRS=['N','NE','E','SE','S','SW','W','NW'];
 const WIND_ARROWS:Record<string,string>={N:'↓',NE:'↙',E:'←',SE:'↖',S:'↑',SW:'↗',W:'→',NW:'↘'};
+function getWindLabel(wind:{speed:number;dir:string}):string{
+  if(wind.speed===0)return'Calm — no wind effect';
+  const type=wind.dir==='N'?'headwind':wind.dir==='S'?'tailwind':'crosswind';
+  return`${wind.speed} mph ${type}`;
+}
 function generateWind():{speed:number;dir:string}{
   if(Math.random()<0.2)return{speed:0,dir:'N'};
   return{speed:rand(3,18),dir:WIND_DIRS[rand(0,WIND_DIRS.length-1)]};
@@ -370,20 +404,20 @@ function applyWind(clubYards:number,wind:{speed:number;dir:string}):number{
 function calcShot(remaining:number,clubYards:number,correct:boolean,secondsLeft:number):{newRemaining:number;landNote:string;onGreen:boolean}{
   const shotDist=Math.round(clubYards*getMultiplier(secondsLeft)),raw=remaining-shotDist;
   if(!correct){
-    if(raw<=0){const ft=rand(30,65);return{newRemaining:ft,landNote:`Mishit — ${ft} ft short`,onGreen:false};}
-    if(raw<=30){const ft=rand(35,70);return{newRemaining:ft,landNote:`Chunked — ${ft} ft from hole`,onGreen:false};}
-    const p=rand(12,28);return{newRemaining:raw+p,landNote:`${raw+p} yds remaining`,onGreen:false};
+    if(raw<=0){const ft=rand(30,65);return{newRemaining:ft,landNote:`Mishit — came up ${ft} ft short of the hole`,onGreen:false};}
+    if(raw<=30){const ft=rand(35,70);return{newRemaining:ft,landNote:`Chunked — ${ft} ft from the hole`,onGreen:false};}
+    const p=rand(12,28);return{newRemaining:raw+p,landNote:`Off target — ${raw+p} yards still to go`,onGreen:false};
   }
   if(raw<=0){
     let ft:number,sn:string;
     if(secondsLeft>=10){ft=rand(3,8);sn='Great shot!';}
     else if(secondsLeft>=5){ft=rand(9,18);sn='On the green.';}
-    else if(secondsLeft>0){ft=rand(19,30);sn='Got there.';}
-    else{ft=rand(31,45);sn='Just made it.';}
-    return{newRemaining:ft,landNote:`${sn} ${ft} ft from hole`,onGreen:true};
+    else if(secondsLeft>0){ft=rand(19,30);sn='Just got there.';}
+    else{ft=rand(31,45);sn='Made it!';}
+    return{newRemaining:ft,landNote:`${sn} ${ft} ft from the hole`,onGreen:true};
   }
-  if(raw<=20){const ft=secondsLeft>=10?rand(8,15):secondsLeft>=5?rand(16,25):rand(26,40);return{newRemaining:ft,landNote:`Rolled up — ${ft} ft`,onGreen:true};}
-  const v=rand(-8,8);return{newRemaining:Math.max(21,raw+v),landNote:`${Math.max(21,raw+v)} yds remaining`,onGreen:false};
+  if(raw<=20){const ft=secondsLeft>=10?rand(8,15):secondsLeft>=5?rand(16,25):rand(26,40);return{newRemaining:ft,landNote:`Rolled onto the green — ${ft} ft from the hole`,onGreen:true};}
+  const v=rand(-8,8);return{newRemaining:Math.max(21,raw+v),landNote:`${Math.max(21,raw+v)} yards remaining`,onGreen:false};
 }
 function calcPenalty(remaining:number,clubKey:string,correct:boolean,secondsLeft:number,hole:{water?:boolean;ob?:boolean}):{penaltyStrokes:number;penaltyNote:string;newRemaining:number;newLie:string}|null{
   if(correct)return null;
@@ -396,22 +430,22 @@ function calcPenalty(remaining:number,clubKey:string,correct:boolean,secondsLeft
   if(secondsLeft<5){wc*=1.4;oc*=1.4;uc*=1.3;}if(secondsLeft===0){wc*=1.8;oc*=1.8;uc*=1.5;}
   const total=wc+oc+uc;if(Math.random()>total)return null;
   const hr=Math.random();
-  if(hr<wc/total){const d=Math.min(remaining+rand(15,30),remaining+20);return{penaltyStrokes:1,penaltyNote:`🌊 Water! +1 stroke. ${d} yds remaining.`,newRemaining:d,newLie:'Rough'};}
-  if(hr<(wc+oc)/total)return{penaltyStrokes:1,penaltyNote:`🚩 OB! +1 stroke. ${remaining} yds remaining.`,newRemaining:remaining,newLie:'Rough'};
-  const d=remaining+rand(5,15);return{penaltyStrokes:1,penaltyNote:`😬 Unplayable! +1 stroke. ${d} yds remaining.`,newRemaining:d,newLie:'Rough'};
+  if(hr<wc/total){const d=Math.min(remaining+rand(15,30),remaining+20);return{penaltyStrokes:1,penaltyNote:`🌊 Ball in the water! +1 penalty stroke. Dropping at ${d} yards.`,newRemaining:d,newLie:'Rough'};}
+  if(hr<(wc+oc)/total)return{penaltyStrokes:1,penaltyNote:`🚩 Out of bounds! +1 penalty stroke. Replaying from ${remaining} yards.`,newRemaining:remaining,newLie:'Rough'};
+  const d=remaining+rand(5,15);return{penaltyStrokes:1,penaltyNote:`😬 Unplayable lie! +1 penalty stroke. Now at ${d} yards.`,newRemaining:d,newLie:'Rough'};
 }
 function getLie(correct:boolean,onGreen:boolean){
   if(onGreen)return correct?'Green':'Fringe';if(correct)return'Fairway';
   return['Rough','Bunker','Rough','Rough'][Math.floor(Math.random()*4)];
-}
+} 
 function getPuttResult(correct:boolean,secondsLeft:number):{feetLeft:number;note:string}{
-  if(correct){let n='Putt drops!';if(secondsLeft>=10)n='Perfect read!';else if(secondsLeft>=5)n='Rattles in!';return{feetLeft:0,note:n};}
-  const ft=rand(2,5),m=['Lipped out','Slid by','Wrong break','Hit back of cup'];
-  return{feetLeft:ft,note:`${m[rand(0,m.length-1)]} — ${ft} ft left.`};
+  if(correct){let n='Putt drops! Hole complete.';if(secondsLeft>=10)n='Perfect read! Ball drops in.';else if(secondsLeft>=5)n='Rattles in! Nice putt.';return{feetLeft:0,note:n};}
+  const ft=rand(2,5),m=['Lipped out','Slid by the edge','Wrong break','Hit the back of the cup'];
+  return{feetLeft:ft,note:`${m[rand(0,m.length-1)]} — ${ft} ft left. Putt again.`};
 }
 function scoreLabel(strokes:number,par:number){const d=strokes-par;if(d<=-2)return'Eagle 🦅';if(d===-1)return'Birdie 🐦';if(d===0)return'Par ✅';if(d===1)return'Bogey';if(d===2)return'Double Bogey';return`+${d} Over`;}
 function totalLabel(diff:number){if(diff<0)return`${diff} Under Par 🔥`;if(diff===0)return'Even Par ✅';return`+${diff} Over Par`;}
-
+ 
 // ─── PITTSBURGH QUESTIONS ─────────────────────────────────────────
 const PITTSBURGH_QUESTIONS:any[]=[
   {cat:'Sports',text:'What color are the Pittsburgh Steelers helmets?',answers:['Red and white','Black and gold','Blue and silver','Green and gold'],correct:1},
@@ -464,7 +498,7 @@ const PITTSBURGH_QUESTIONS:any[]=[
   {cat:'History & Landmarks',text:'What Revolutionary War-era fort in Westmoreland County played a key role in western PA defense?',answers:['Fort Necessity','Fort Pitt','Fort Ligonier','Fort Bedford'],correct:2},
   {cat:'Sports',text:'What Pittsburgh boxer nicknamed The Pittsburgh Kid famously fought Joe Louis?',answers:['Harry Greb','Fritzie Zivic','Billy Conn','Paul Spadafora'],correct:2},
 ];
-
+ 
 const QUESTIONS:any={
   driver:[
     {text:'What is the maximum legal driver head size in cubic centimeters?',answers:['360cc','460cc','500cc','420cc'],correct:1},
@@ -570,42 +604,99 @@ const QUESTIONS:any={
     {text:'What does "plumb bobbing" mean?',answers:['Measuring hole depth','Holding putter vertically to read slope','A grip type','A warm-up technique'],correct:1},
   ],
 };
-
+ 
 function getProfilePool(profile:Profile|null):any[]{
-  const allGolf=Object.values(QUESTIONS).flat() as any[];
-  const sbr=profile?.sbr||1000;
-  const easyPool=sbr<950?easyQuestions.filter((q:any)=>q.difficulty==='easy'):sbr<1200?easyQuestions:[];
-  if(!profile||!profile.questionnaire)return[...allGolf,...easyPool];
-  const q=profile.questionnaire;
-  let pool:any[]=[...allGolf];
-  if(q.q4==='Sports & Athletics')pool=[...pool,...PITTSBURGH_QUESTIONS.filter((x:any)=>x.cat==='Sports')];
-  if(q.q4==='History & Geography')pool=[...pool,...PITTSBURGH_QUESTIONS.filter((x:any)=>x.cat==='History & Landmarks'||x.cat==='Geography')];
-  if(q.q4==='Pop Culture & Entertainment')pool=[...pool,...PITTSBURGH_QUESTIONS.filter((x:any)=>x.cat==='Food & Culture')];
-  if(q.q6==='Gaming / Technology / Movies & TV')pool=[...pool,...corbQuestions.filter((x:any)=>x.cat==='90s Wrestling'||x.cat==='Monster Squad'||x.cat==='Sidney Sweeney')];
-  if(q.q6==='Fitness / Outdoor sports / Hunting & Fishing')pool=[...pool,...PITTSBURGH_QUESTIONS.filter((x:any)=>x.cat==='Nature & Parks'||x.cat==='Sports')];
-  if(q.q6==='Music / Art / Food & Cooking')pool=[...pool,...PITTSBURGH_QUESTIONS.filter((x:any)=>x.cat==='Food & Culture')];
-  if(q.q8==='Football (NFL / College)')pool=[...pool,...PITTSBURGH_QUESTIONS.filter((x:any)=>x.cat==='Sports')];
-  if(q.q8==='Baseball / Hockey / Basketball')pool=[...pool,...PITTSBURGH_QUESTIONS.filter((x:any)=>x.cat==='Sports')];
-  if(q.q8==='Combat sports / Motorsports / Extreme sports')pool=[...pool,...corbQuestions.filter((x:any)=>x.cat==='90s Wrestling'||x.cat==='Charles Barkley')];
-  if(q.q5==='Northeast (PA, NY, NJ, New England)')pool=[...pool,...PITTSBURGH_QUESTIONS];
-  if(profile.favCats?.includes('Wrestling'))pool=[...pool,...corbQuestions.filter((x:any)=>x.cat==='90s Wrestling')];
-  if(profile.favCats?.includes('Sidney Sweeney'))pool=[...pool,...corbQuestions.filter((x:any)=>x.cat==='Sidney Sweeney')];
-  if(profile.favCats?.includes('Monster Squad'))pool=[...pool,...corbQuestions.filter((x:any)=>x.cat==='Monster Squad')];
-  if(profile.favCats?.includes('Charles Barkley'))pool=[...pool,...corbQuestions.filter((x:any)=>x.cat==='Charles Barkley')];
-  if(profile.favCats?.includes('East Pittsburgh'))pool=[...pool,...corbQuestions.filter((x:any)=>x.cat==='East Pittsburgh')];
-  if(profile.favCats?.includes('Pittsburgh'))pool=[...pool,...PITTSBURGH_QUESTIONS];
-  if(profile.favCats?.includes('Golf'))pool=[...pool,...allGolf];
-  return[...pool,...easyPool];
+  const allGolf = Object.values(QUESTIONS).flat() as any[];
+
+  const pools: Record<string, any[]> = {
+    Golf: allGolf,
+    Pittsburgh: PITTSBURGH_QUESTIONS,
+    Sports: PITTSBURGH_QUESTIONS.filter((q:any)=>q.cat === 'Sports'),
+    Local: PITTSBURGH_QUESTIONS,
+    History: PITTSBURGH_QUESTIONS.filter((q:any)=>q.cat === 'History & Landmarks' || q.cat === 'Geography'),
+    Food: PITTSBURGH_QUESTIONS.filter((q:any)=>q.cat === 'Food & Culture'),
+    Nature: PITTSBURGH_QUESTIONS.filter((q:any)=>q.cat === 'Nature & Parks'),
+    Wrestling: corbQuestions.filter((q:any)=>q.cat === '90s Wrestling'),
+    MonsterSquad: corbQuestions.filter((q:any)=>q.cat === 'Monster Squad'),
+    SidneySweeney: corbQuestions.filter((q:any)=>q.cat === 'Sidney Sweeney'),
+    CharlesBarkley: corbQuestions.filter((q:any)=>q.cat === 'Charles Barkley'),
+    EastPittsburgh: corbQuestions.filter((q:any)=>q.cat === 'East Pittsburgh'),
+  };
+
+  let pool:any[] = [];
+
+  // Default fallback keeps the app playable even without a completed profile.
+  if(!profile){
+    return [...allGolf, ...easyQuestions];
+  }
+
+  // Keep older profile favorite categories working.
+  if(profile.favCats?.length){
+    profile.favCats.forEach((cat:string)=>{
+      if(pools[cat]) pool = [...pool, ...pools[cat]];
+    });
+  }
+
+  // New questionnaire-driven category logic.
+  const q = profile.questionnaire;
+
+  if(q){
+    if(q.q4 === 'Sports & Athletics') pool = [...pool, ...pools.Sports];
+    if(q.q4 === 'History & Geography') pool = [...pool, ...pools.History];
+    if(q.q4 === 'Pop Culture & Entertainment') pool = [...pool, ...pools.Food];
+
+    if(q.q5 === 'Northeast (PA, NY, NJ, New England)') pool = [...pool, ...pools.Pittsburgh];
+
+    if(q.q6 === 'Gaming / Technology / Movies & TV'){
+      pool = [...pool, ...pools.MonsterSquad, ...pools.SidneySweeney];
+    }
+
+    if(q.q6 === 'Fitness / Outdoor sports / Hunting & Fishing'){
+      pool = [...pool, ...pools.Nature, ...pools.Sports];
+    }
+
+    if(q.q6 === 'Music / Art / Food & Cooking'){
+      pool = [...pool, ...pools.Food];
+    }
+
+    if(q.q8 === 'Football (NFL / College)' || q.q8 === 'Baseball / Hockey / Basketball'){
+      pool = [...pool, ...pools.Sports];
+    }
+
+    if(q.q8 === 'Combat sports / Motorsports / Extreme sports'){
+      pool = [...pool, ...pools.Wrestling, ...pools.CharlesBarkley];
+    }
+  }
+
+  // Always keep golf available because the main 18-hole game still uses golf mechanics.
+  pool = [...pool, ...allGolf];
+
+  // Add easy questions for lower-rated/new players.
+  const sbr = profile.sbr || 1000;
+  if(sbr < 950){
+    pool = [...pool, ...easyQuestions.filter((q:any)=>q.difficulty === 'easy')];
+  } else if(sbr < 1200){
+    pool = [...pool, ...easyQuestions];
+  }
+
+  // Remove exact duplicate questions by question text.
+  const seen = new Set<string>();
+  return pool.filter((item:any)=>{
+    const key = item.text?.trim().toLowerCase();
+    if(!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
-
+ 
 const SPONSOR_NAME='Your Brand';
-
+ 
 // ─── CATEGORY REQUEST FORM ────────────────────────────────────────
 function CategoryRequestForm({onClose}:{onClose:()=>void}){
   const [category,setCategory]=useState('');
   const [submitted,setSubmitted]=useState(false);
   const [sending,setSending]=useState(false);
-
+ 
   async function handleSubmit(){
     if(!category.trim())return;
     setSending(true);
@@ -621,7 +712,7 @@ function CategoryRequestForm({onClose}:{onClose:()=>void}){
     }
     setSending(false);
   }
-
+ 
   if(submitted)return(
     <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.85)',zIndex:999,display:'flex',alignItems:'center',justifyContent:'center',padding:24}}>
       <div style={{background:'var(--surface)',border:'1px solid var(--gold)',borderRadius:12,padding:32,maxWidth:320,width:'100%',textAlign:'center'}}>
@@ -632,7 +723,7 @@ function CategoryRequestForm({onClose}:{onClose:()=>void}){
       </div>
     </div>
   );
-
+ 
   return(
     <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.85)',zIndex:999,display:'flex',alignItems:'center',justifyContent:'center',padding:24}}>
       <div style={{background:'var(--surface)',border:'1px solid var(--gold)',borderRadius:12,padding:32,maxWidth:320,width:'100%'}}>
@@ -652,7 +743,7 @@ function CategoryRequestForm({onClose}:{onClose:()=>void}){
     </div>
   );
 }
-
+ 
 // ─── HOLE GRAPHIC ─────────────────────────────────────────────────
 function HoleGraphic({holeYards,remaining,lie,par,strokes,scorecard,playerName,activePlayers,multiScores,multiHoleIdx,isMulti}:{
   holeYards:number;remaining:number;lie:string;par:number;strokes:number;
@@ -669,8 +760,6 @@ function HoleGraphic({holeYards,remaining,lie,par,strokes,scorecard,playerName,a
   const ballY=lie==='Green'||lie==='Fringe'?centerY:lie==='Bunker'?centerY+16:lie==='Rough'?(ballX%3===0?centerY-16:centerY+16):centerY;
   const leaders:{name:string;total:number}[]=isMulti&&activePlayers&&multiScores?activePlayers.map((n,i)=>({name:n,total:(multiScores[i]||[]).reduce((a,b)=>a+b,0)})).sort((a,b)=>a.total-b.total):[];
   const soloDiff=scorecard.reduce((a,b)=>a+b,0)-COURSE.slice(0,scorecard.length).reduce((s,h)=>s+h.par,0);
-  const toGoStr=remaining>20?`${remaining}y`:remaining>0?`${remaining}ft`:'–';
-  const lieStr=lie==='Tee Box'?'TEE':lie==='Fairway'?'FAIRWAY':lie==='Green'?'GREEN':lie==='Fringe'?'FRINGE':lie==='Bunker'?'BUNKER':lie==='Rough'?'ROUGH':lie==='Holed'?'HOLED':lie.toUpperCase();
   return(
     <svg width={W} height={H} style={{display:'block',margin:'0 auto 14px',borderRadius:10,overflow:'hidden'}}>
       <rect width={W} height={H} fill="#061008"/>
@@ -686,7 +775,6 @@ function HoleGraphic({holeYards,remaining,lie,par,strokes,scorecard,playerName,a
       {progress>0.05&&progress<0.97&&<path d={`M ${teeX+12} ${centerY} C ${teeX+60} ${centerY-4} ${ballX-40} ${ballY-4} ${ballX} ${ballY}`} fill="none" stroke="rgba(200,168,75,0.35)" strokeWidth="1.4" strokeDasharray="5,5"/>}
       {lie!=='Holed'&&<><circle cx={ballX} cy={ballY} r="6" fill="#f8f8f8" stroke="#1a1a1a" strokeWidth="1"/><circle cx={ballX-2} cy={ballY-2} r="2.2" fill="rgba(255,255,255,0.7)"/></>}
       {lie==='Holed'&&<text x="289" y={centerY+4} textAnchor="middle" fontSize={12} fill="#c8a84b">⛳</text>}
-      
       <rect x="0" y="125" width={W} height="15" fill="rgba(0,0,0,0.92)"/>
       <rect x="0" y="125" width="60" height="15" fill="#c8a84b"/>
       <text x="4" y="135" fontSize={6.5} fill="#061008" fontFamily="Georgia,serif">LEADERBOARD</text>
@@ -696,7 +784,7 @@ function HoleGraphic({holeYards,remaining,lie,par,strokes,scorecard,playerName,a
     </svg>
   );
 }
-
+ 
 // ─── CALIBRATION SCREEN ───────────────────────────────────────────
 function CalibrationScreen({onComplete}:{onComplete:(sbIndex:number)=>void}){
   const [idx,setIdx]=useState(0);
@@ -747,15 +835,17 @@ function CalibrationScreen({onComplete}:{onComplete:(sbIndex:number)=>void}){
     </div>
   );
 }
-
+ 
 // ─── PROFILE PICKER ───────────────────────────────────────────────
 function ProfilePickerScreen({onSelect,onNew,onBack}:{onSelect:(p:Profile)=>void;onNew:()=>void;onBack:()=>void}){
   const profiles=loadProfiles();
   const names=Object.keys(profiles);
   const [pinTarget,setPinTarget]=useState<string|null>(null);
   const [pinInput,setPinInput]=useState('');
-  const [pinError,setPinError]=useState('');
-
+  // FIX: separate state for the "find my profile" name field
+  const [findName,setFindName]=useState('');
+  const [findPin,setFindPin]=useState('');
+ 
   function attemptSelect(name:string){
     const p=profiles[name];
     if(p.pin){setPinTarget(name);setPinInput('');setPinError('');}
@@ -767,23 +857,25 @@ function ProfilePickerScreen({onSelect,onNew,onBack}:{onSelect:(p:Profile)=>void
     if(pinInput===p.pin){saveActiveProfileName(pinTarget);onSelect(p);}
     else setPinError('Wrong PIN — try again');
   }
-
+ 
   if(pinTarget){
     if(pinTarget==='__find__')return(
       <div className="screen center">
         <div style={{width:60,height:60,borderRadius:'50%',border:'2px solid var(--gold)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'1.6rem',marginBottom:16,background:'radial-gradient(circle,#1a2e20 0%,var(--bg) 100%)'}}>🔍</div>
         <h2 style={{fontFamily:'Georgia,serif',color:'var(--gold)',marginBottom:4}}>Find My Profile</h2>
         <p style={{fontSize:'0.72rem',color:'var(--muted)',marginBottom:24}}>Enter your name and PIN</p>
-        <input placeholder="Your Name" value={pinInput} onChange={e=>setPinInput(e.target.value)}
+        {/* FIX: use separate findName / findPin state instead of overloading pinError */}
+        <input placeholder="Your Name" value={findName} onChange={e=>setFindName(e.target.value)}
           style={{background:'transparent',border:'none',borderBottom:'1px solid var(--gold)',color:'var(--text)',padding:'10px 8px',fontFamily:'Georgia,serif',fontSize:'1rem',textAlign:'center',outline:'none',marginBottom:16,width:'100%',maxWidth:280}}/>
-        <input type="password" maxLength={4} placeholder="4-digit PIN" value={pinError} onChange={e=>setPinError(e.target.value.replace(/\D/g,'').slice(0,4))}
+        <input type="password" maxLength={4} placeholder="4-digit PIN" value={findPin} onChange={e=>setFindPin(e.target.value.replace(/\D/g,'').slice(0,4))}
           style={{background:'transparent',border:'none',borderBottom:'1px solid var(--gold)',color:'var(--text)',padding:'10px 8px',fontFamily:'Georgia,serif',fontSize:'1.4rem',textAlign:'center',outline:'none',marginBottom:16,width:'100%',maxWidth:200,letterSpacing:'8px'}}/>
+        {pinError&&<p style={{color:'var(--red)',fontSize:'0.88rem',marginBottom:12}}>{pinError}</p>}
         <button className="btn" style={{width:'100%',maxWidth:280,marginBottom:10}} onClick={async()=>{
-          const found=await cloudLoadProfile(pinInput.trim(),pinError.trim());
-          if(!found){setPinInput('');setPinError('');alert('Name or PIN not found');return;}
+          const found=await cloudLoadProfile(findName.trim(),findPin.trim());
+          if(!found){setFindName('');setFindPin('');setPinError('Name or PIN not found');return;}
           saveProfile(found);onSelect(found);
-        }} disabled={!pinInput.trim()||pinError.length!==4}>Find Profile →</button>
-        <button onClick={()=>{setPinTarget(null);}} style={{background:'transparent',border:'none',color:'var(--muted)',fontFamily:'Georgia,serif',fontSize:'0.8rem',cursor:'pointer'}}>← Back</button>
+        }} disabled={!findName.trim()||findPin.length!==4}>Find Profile →</button>
+        <button onClick={()=>{setPinTarget(null);setPinError('');}} style={{background:'transparent',border:'none',color:'var(--muted)',fontFamily:'Georgia,serif',fontSize:'0.8rem',cursor:'pointer'}}>← Back</button>
       </div>
     );
     return(
@@ -799,7 +891,7 @@ function ProfilePickerScreen({onSelect,onNew,onBack}:{onSelect:(p:Profile)=>void
       </div>
     );
   }
-
+ 
   return(
     <div className="screen center">
       <div style={{width:60,height:60,borderRadius:'50%',border:'2px solid var(--gold)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'1.6rem',marginBottom:16,background:'radial-gradient(circle,#1a2e20 0%,var(--bg) 100%)'}}>👥</div>
@@ -811,14 +903,11 @@ function ProfilePickerScreen({onSelect,onNew,onBack}:{onSelect:(p:Profile)=>void
           const p=profiles[name];
           return(
             <button key={name} onClick={()=>attemptSelect(name)} style={{background:'var(--surface)',border:'1px solid var(--border)',borderRadius:10,padding:'12px 16px',display:'flex',alignItems:'center',justifyContent:'space-between',cursor:'pointer'}}>
-              <div style={{display:'flex',alignItems:'center',gap:10}}>
-                <AvatarDisplay avatar={p.avatar} size="sm" />
-                <div style={{textAlign:'left'}}>
-                  <div style={{fontFamily:'Georgia,serif',color:'var(--gold)',fontSize:'1rem'}}>{name}</div>
-                  <div style={{fontSize:'0.7rem',color:'var(--muted)',marginTop:2}}>
-                    {p.division?`🏫 ${p.division}`:p.courseTier?`📍 ${p.courseTier} Tee`:'No tier set'}
-                    {p.calibrated?` · SBI ${p.sbIndex?.toFixed(1)}`:''}
-                  </div>
+              <div style={{textAlign:'left'}}>
+                <div style={{fontFamily:'Georgia,serif',color:'var(--gold)',fontSize:'1rem'}}>{name}</div>
+                <div style={{fontSize:'0.7rem',color:'var(--muted)',marginTop:2}}>
+                  {p.division?`🏫 ${p.division}`:p.courseTier?`📍 ${p.courseTier} Tee`:'No tier set'}
+                  {p.calibrated?` · SBI ${p.sbIndex?.toFixed(1)}`:''}
                 </div>
               </div>
               <div style={{fontSize:'0.75rem',color:'var(--muted)'}}>{p.pin?'🔒':'→'}</div>
@@ -827,12 +916,12 @@ function ProfilePickerScreen({onSelect,onNew,onBack}:{onSelect:(p:Profile)=>void
         })}
       </div>
       <button className="btn" style={{width:'100%',maxWidth:300,marginBottom:10,background:'var(--gold)',color:'var(--bg)',border:'none'}} onClick={onNew}>+ Create New Player</button>
-<button onClick={()=>setPinTarget('__find__')} style={{width:'100%',maxWidth:300,background:'transparent',border:'1px solid var(--border)',color:'var(--muted)',padding:'11px',borderRadius:8,fontFamily:'Georgia,serif',fontSize:'0.82rem',cursor:'pointer',marginBottom:10}}>🔍 Find My Profile</button>
-<button onClick={onBack} style={{background:'transparent',border:'none',color:'var(--muted)',fontFamily:'Georgia,serif',fontSize:'0.8rem',cursor:'pointer'}}>← Back</button>
+      <button onClick={()=>setPinTarget('__find__')} style={{width:'100%',maxWidth:300,background:'transparent',border:'1px solid var(--border)',color:'var(--muted)',padding:'11px',borderRadius:8,fontFamily:'Georgia,serif',fontSize:'0.82rem',cursor:'pointer',marginBottom:10}}>🔍 Find My Profile</button>
+      <button onClick={onBack} style={{background:'transparent',border:'none',color:'var(--muted)',fontFamily:'Georgia,serif',fontSize:'0.8rem',cursor:'pointer'}}>← Back</button>
     </div>
   );
 }
-
+ 
 // ─── QUESTIONNAIRE SCREEN ─────────────────────────────────────────
 function QuestionnaireScreen({onComplete,onSkip,existing}:{onComplete:(q:Questionnaire)=>void;onSkip:()=>void;existing?:Questionnaire|null}){
   const blank:Questionnaire={q1:'',q2:'',q3:'',q4:'',q5:'',q6:'',q7:'',q8:'',q9:'',q10:''};
@@ -878,331 +967,457 @@ function QuestionnaireScreen({onComplete,onSkip,existing}:{onComplete:(q:Questio
     </div>
   );
 }
-
+ 
 // ─── PROFILE SCREEN ───────────────────────────────────────────────
 function ProfileScreen({onBack,onSwitchPlayer}:{onBack:()=>void;onSwitchPlayer:()=>void}){
-  const [mode,setMode]=useState<'create'|'view'|'questionnaire'|'calibration'>(() => loadProfile()?'view':'create');
-  const [profile,setProfile]=useState<Profile|null>(loadProfile);
-  const [name,setName]=useState(profile?.name||'');
-  const [experience,setExperience]=useState(profile?.experience||'Beginner');
-  const [pin,setPin]=useState(profile?.pin||'');
-  const [pinError,setPinError]=useState('');
+  const existingProfile = loadProfile();
+ 
+  const [mode,setMode]=useState<'hub'|'create'|'manage'|'locker'|'noProfile'>('hub');
+  const [profile,setProfile]=useState<Profile|null>(existingProfile);
+  const [name,setName]=useState(existingProfile?.name||'');
+ 
+  const [profileStep,setProfileStep]=useState(0);
+  const [profileAnswers,setProfileAnswers]=useState<Record<string,string[]>>({});
+  const [experience,setExperience]=useState(existingProfile?.experience||'Beginner');
   const [cloudSyncing,setCloudSyncing]=useState(false);
-  const [showAvatarStudio,setShowAvatarStudio]=useState(false);
-  const [ptaDivision,setPtaDivision]=useState(profile?.division||'');
+  // FIX: removed dangling pinError / setPin — pin is not managed in ProfileScreen
+ 
+  // Map PROFILE_QUESTIONS answers into Profile fields
+  function buildProfileFromAnswers(playerName: string): Profile {
+    const favCats: string[] = [];
 
+    const sports = profileAnswers['favoriteSports'] || [];
+    if (sports.includes('Football')) favCats.push('Football');
+    if (sports.includes('Baseball')) favCats.push('Baseball');
+    if (sports.includes('Basketball')) favCats.push('Basketball');
+    if (sports.includes('Hockey')) favCats.push('Hockey');
+    if (sports.includes('Golf')) favCats.push('Golf');
+    if (sports.includes('Soccer')) favCats.push('Soccer');
+    if (sports.includes('Wrestling')) favCats.push('Wrestling');
+    if (sports.includes('Volleyball')) favCats.push('Volleyball');
+
+    const local = profileAnswers['localInterest'] || [];
+    if (local.includes('Pittsburgh')) favCats.push('Pittsburgh');
+    if (local.includes('PA') || local.includes('Pennsylvania')) favCats.push('Pittsburgh');
+
+    const entertainment = profileAnswers['entertainment'] || [];
+    if (entertainment.includes('Movies') || entertainment.includes('TV')) favCats.push('Monster Squad');
+    if (entertainment.includes('Celebrities')) favCats.push('Sidney Sweeney');
+
+    const confidence = (profileAnswers['triviaConfidence'] || ['Casual'])[0];
+
+    const handicapMap: Record<string,number> = {
+      Beginner: 36,
+      Casual: 24,
+      Solid: 12,
+      Expert: 4,
+    };
+
+    const owsbrMap: Record<string,number> = {
+      Beginner: 500,
+      Casual: 800,
+      Solid: 1200,
+      Expert: 1600,
+    };
+
+    const sbIndexMap: Record<string,number> = {
+      Beginner: 24,
+      Casual: 18,
+      Solid: 10,
+      Expert: 5,
+    };
+
+    const existing = loadProfile();
+    const startingSbIndex = existing?.sbIndex ?? sbIndexMap[confidence] ?? 18;
+
+    return {
+      name: playerName,
+      experience,
+      favCats,
+      owsbr: existing?.owsbr ?? owsbrMap[confidence] ?? 1000,
+      triviaHandicap: existing?.triviaHandicap ?? handicapMap[confidence] ?? 24,
+      sbr: existing?.sbr ?? owsbrMap[confidence] ?? 1000,
+      roundsPlayed: existing?.roundsPlayed ?? 0,
+      correctAnswers: existing?.correctAnswers ?? 0,
+      totalAnswers: existing?.totalAnswers ?? 0,
+      questionnaire: existing?.questionnaire,
+      courseTier: existing?.courseTier ?? 'Intermediate',
+      division: existing?.division ?? 'Open',
+      sbIndex: startingSbIndex,
+      calibrated: true,
+      eventPar: existing?.eventPar ?? getEventPar(startingSbIndex),
+    };
+  }
+ 
   async function handleSave(){
     if(!name.trim())return;
-    if(pin.length!==4||!/^\d{4}$/.test(pin)){setPinError('PIN must be exactly 4 digits');return;}
-    setPinError('');setCloudSyncing(true);
-    const p:Profile={
-      name:name.trim(),experience,favCats:profile?.favCats||[],pin,
-      owgtr:profile?.owgtr||1000,triviaHandicap:profile?.triviaHandicap||36,sbr:profile?.sbr||1000,
-      roundsPlayed:profile?.roundsPlayed||0,correctAnswers:profile?.correctAnswers||0,totalAnswers:profile?.totalAnswers||0,
-      questionnaire:profile?.questionnaire,courseTier:profile?.courseTier,
-      division:ptaDivision||profile?.division,sbIndex:profile?.sbIndex,calibrated:profile?.calibrated,eventPar:profile?.eventPar,
-    };
-    const nameExists=await cloudCheckNameExists(name.trim());
-    if(nameExists&&!profile){setPinError('That name is taken — try a different one');setCloudSyncing(false);return;}
-    if(!nameExists){await cloudCreateProfile(p,pin);}else{await cloudSaveProfile(p,pin);}
-    saveProfile(p);setProfile(p);setCloudSyncing(false);setMode('questionnaire');
+    setCloudSyncing(true);
+ 
+    const p: Profile = buildProfileFromAnswers(name.trim());
+ 
+    try{
+      const nameExists=await cloudCheckNameExists(p.name);
+      if(!nameExists){
+        await cloudCreateProfile(p);
+      }else{
+        await cloudSaveProfile(p);
+      }
+      saveProfile(p);
+      setProfile(p);
+      setCloudSyncing(false);
+      setMode('manage');
+    }catch{
+      saveProfile(p);
+      setProfile(p);
+      setCloudSyncing(false);
+      setMode('manage');
+    }
   }
-
-  function handleQuestionnaireComplete(q:Questionnaire){
-    saveQuestionnaire(q);
-    const{handicap,tier,owgtr}=calcHandicapFromQ(q);const sbr=calcSBR(q);
-    const updated:Profile={...profile!,triviaHandicap:handicap,courseTier:tier,owgtr,sbr,questionnaire:q};
-    saveProfile(updated);setProfile(updated);setMode('view');
-  }
-
-  function handleCalibrationComplete(sbIndex:number){
-    const eventPar=getEventPar(sbIndex);
-    const updated:Profile={...profile!,sbIndex,calibrated:true,eventPar};
-    saveProfile(updated);setProfile(updated);setMode('view');
-  }
-
-  function handleAvatarSave(updated:PlayerProfile){
-    const p={...profile!,...updated};
-    saveProfile(p as Profile);setProfile(p as Profile);
-    if(p.pin) cloudSaveProfile(p as Profile,p.pin).catch(()=>{});
-    setShowAvatarStudio(false);
-  }
-
-  function handleDelete(){
-    const profiles=loadProfiles();
-    if(profile)delete profiles[profile.name];
-    saveProfiles(profiles);removeActiveProfile();
-    localStorage.removeItem('sb_questionnaire');
-    setProfile(null);setName('');setExperience('Beginner');setMode('menu');
-    onBack();
-  }
-
-  const inputStyle:any={background:'transparent',border:'none',borderBottom:'1px solid var(--gold)',color:'var(--text)',padding:'10px 8px',fontFamily:'Georgia,serif',fontSize:'0.95rem',width:'100%',outline:'none',marginBottom:14};
-  const tierColors:Record<string,string>={Championship:'#c8a84b',Advanced:'#3fa36b',Intermediate:'#4a90d9',Recreational:'#9b59b6',Beginner:'#7a9485'};
-
-  if(showAvatarStudio)return(
-    <div style={{width:'100%',height:'100vh'}}>
-      <AvatarCustomizer
-        profile={profile||{}}
-        supabase={supabase}
-        onSave={handleAvatarSave}
-        onClose={()=>setShowAvatarStudio(false)}
-      />
+ 
+  const toggleProfileAnswer = (q: ProfileQuestion, option: string) => {
+    setProfileAnswers(prev=>{
+      const current = prev[q.id] || [];
+      if(!q.multi){
+        return {...prev,[q.id]:[option]};
+      }
+      if(option === 'None' || option.includes('No Local Preference')){
+        return {...prev,[q.id]:[option]};
+      }
+      const cleaned = current.filter(x=>x !== 'None' && !x.includes('No Local Preference'));
+      if(cleaned.includes(option)){
+        return {...prev,[q.id]:cleaned.filter(x=>x!==option)};
+      }
+      return {...prev,[q.id]:[...cleaned,option]};
+    });
+  };
+ 
+  const currentProfileQuestion = PROFILE_QUESTIONS[profileStep];
+  const currentProfileAnswer = profileAnswers[currentProfileQuestion?.id] || [];
+  const canContinueProfile = currentProfileAnswer.length > 0;
+ 
+  const inputStyle:any={
+    background:'transparent',
+    border:'none',
+    borderBottom:'2px solid var(--gold)',
+    color:'var(--text)',
+    padding:'12px 8px',
+    fontFamily:'Georgia,serif',
+    fontSize:'1rem',
+    width:'100%',
+    outline:'none',
+    marginBottom:16
+  };
+ 
+  const cardBtn=(bg:string,border:string,color:string)=>({
+    width:'100%',
+    minHeight:78,
+    padding:'18px 20px',
+    borderRadius:20,
+    border:`3px solid ${border}`,
+    background:bg,
+    color,
+    display:'flex',
+    alignItems:'center',
+    gap:16,
+    cursor:'pointer',
+    boxShadow:`0 8px 24px ${border}44`,
+    textAlign:'left' as const
+  });
+ 
+  if(mode==='hub')return(
+    <div className="screen center">
+      <div style={{width:'100%',maxWidth:390}}>
+        <div style={{textAlign:'center',marginBottom:26}}>
+          <div style={{fontSize:'3rem',marginBottom:8}}>👤</div>
+          <h2 style={{fontFamily:'Georgia,serif',color:'var(--gold)',fontSize:'1.7rem'}}>Profile Center</h2>
+          <p style={{fontSize:'0.72rem',letterSpacing:'3px',textTransform:'uppercase',color:'var(--muted)'}}>Build · Manage · Review</p>
+        </div>
+        <div style={{display:'flex',flexDirection:'column',gap:14}}>
+          <button onClick={()=>{
+            setName('');
+            setExperience('Beginner');
+            setProfile(null);
+            setProfileStep(0);
+            setProfileAnswers({});
+            setMode('create');
+          }} style={cardBtn('linear-gradient(135deg,#38d94c 0%,#126822 100%)','#66ff7a','#fff')}>
+            <div style={{fontSize:'2rem'}}>✨</div>
+            <div>
+              <div style={{fontFamily:'Georgia,serif',fontSize:'1.25rem',fontWeight:900}}>CREATE PROFILE</div>
+              <div style={{fontSize:'0.72rem'}}>New player setup</div>
+            </div>
+            <div style={{marginLeft:'auto',fontSize:'1.4rem'}}>›</div>
+          </button>
+          <button onClick={()=>{
+            const p=loadProfile();
+            if(p){
+              setProfile(p);
+              setName(p.name);
+              setExperience(p.experience||'Beginner');
+              setMode('manage');
+            }else{
+              setMode('noProfile');
+            }
+          }} style={cardBtn('linear-gradient(135deg,#3557ff 0%,#16235f 100%)','#5f7cff','#fff')}>
+            <div style={{fontSize:'2rem'}}>🛠️</div>
+            <div>
+              <div style={{fontFamily:'Georgia,serif',fontSize:'1.25rem',fontWeight:900}}>MANAGE PROFILE</div>
+              <div style={{fontSize:'0.72rem'}}>Edit saved player</div>
+            </div>
+            <div style={{marginLeft:'auto',fontSize:'1.4rem'}}>›</div>
+          </button>
+          <button onClick={()=>{
+            const savedProfiles=loadProfiles();
+            const savedNames=Object.keys(savedProfiles);
+            if(savedNames.length>0){
+              const p=loadProfile();
+              if(p){setProfile(p);setMode('locker');}
+              else setMode('noProfile');
+            }else{
+              setMode('noProfile');
+            }
+          }} style={cardBtn('linear-gradient(135deg,#ffcc33 0%,#8a6200 100%)','#ffd85a','#1c1400')}>
+            <div style={{fontSize:'2rem'}}>🏆</div>
+            <div>
+              <div style={{fontFamily:'Georgia,serif',fontSize:'1.25rem',fontWeight:900}}>MEMBER LOCKER</div>
+              <div style={{fontSize:'0.72rem'}}>Stats and player card</div>
+            </div>
+            <div style={{marginLeft:'auto',fontSize:'1.4rem'}}>›</div>
+          </button>
+        </div>
+        <button onClick={onBack} style={{marginTop:20,background:'transparent',border:'none',color:'var(--muted)',fontFamily:'Georgia,serif',cursor:'pointer'}}>← Back</button>
+      </div>
     </div>
   );
-
-  if(mode==='calibration')return<CalibrationScreen onComplete={handleCalibrationComplete}/>;
-  if(mode==='questionnaire')return<QuestionnaireScreen existing={loadQuestionnaire()} onComplete={handleQuestionnaireComplete} onSkip={()=>setMode('view')}/>;
-
-  if(mode==='view'&&profile){
-    const tierColor=tierColors[profile.courseTier||'Intermediate'];
-    return(
-      <div className="screen center">
-        <div style={{marginBottom:16,cursor:'pointer'}} onClick={()=>setShowAvatarStudio(true)}>
-          <AvatarDisplay avatar={profile.avatar} size="lg" playerName={profile.name} />
-        </div>
-        <p style={{fontSize:'0.72rem',letterSpacing:'3px',textTransform:'uppercase',color:'var(--muted)',marginBottom:4}}>{profile.experience} · Scramble Brains Player</p>
-        {profile.division&&<p style={{fontSize:'0.72rem',color:'var(--gold)',marginBottom:4}}>🏫 {profile.division}</p>}
-        {profile.courseTier&&<p style={{fontSize:'0.72rem',letterSpacing:'2px',color:tierColor,marginBottom:20}}>📍 {profile.courseTier} Tee</p>}
-        <div style={{width:'100%',maxWidth:300,display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:20}}>
-        {([
-  ['Rounds Played', profile.roundsPlayed || 0],
-  [
-    'Answer %',
-    profile.totalAnswers
-      ? `${Math.round((profile.correctAnswers / profile.totalAnswers) * 100)}%`
-      : '—',
-  ],
-  ['Correct', profile.correctAnswers || 0],
-  ['Total Answered', profile.totalAnswers || 0],
-] as [string, any][]).map(([label, value]) => (
-  <div
-    key={label}
-    style={{
-      background: 'var(--surface)',
-      border: '1px solid var(--border)',
-      borderRadius: 8,
-      padding: '12px',
-      textAlign: 'center',
-    }}
-  >
-    <div
-      style={{
-        fontSize: '0.62rem',
-        letterSpacing: '2px',
-        textTransform: 'uppercase',
-        color: 'var(--muted)',
-        marginBottom: 6,
-      }}
-    >
-      {label}
-    </div>
-    <div
-      style={{
-        fontFamily: 'Georgia, serif',
-        fontSize: '1.1rem',
-        color: 'var(--gold)',
-      }}
-    >
-      {value}
-    </div>
-  </div>
-))}
-        </div>
-        {!profile.calibrated&&(
-          <div style={{background:'rgba(200,168,75,0.08)',border:'1px solid var(--gold)',borderRadius:8,padding:'10px 14px',marginBottom:16,width:'100%',maxWidth:300,textAlign:'center'}}>
-            <p style={{fontSize:'0.78rem',color:'var(--gold)',marginBottom:8}}>⚠️ No SB Index — needed for Fundraiser Mode</p>
-            <div style={{display:'flex',flexWrap:'wrap',gap:6,justifyContent:'center',marginBottom:8}}>
-              {['Grade 1','Grade 2','Grade 3','Grade 4','Grade 5','Middle School','High School','Parent','Teacher','Community'].map(d=>(
-                <button key={d} onClick={()=>setPtaDivision(d)} style={{background:ptaDivision===d?'var(--gold)':'transparent',color:ptaDivision===d?'var(--bg)':'var(--muted)',border:`1px solid ${ptaDivision===d?'var(--gold)':'var(--border)'}`,padding:'4px 10px',borderRadius:20,fontFamily:'Georgia,serif',fontSize:'0.68rem',cursor:'pointer'}}>{d}</button>
-              ))}
-            </div>
-            <button className="btn" style={{width:'100%'}} disabled={!ptaDivision} onClick={()=>{
-              const updated={...profile,division:ptaDivision};saveProfile(updated);setProfile(updated);setMode('calibration');
-            }}>Set Division & Calibrate →</button>
-          </div>
-        )}
-        <div style={{display:'flex',gap:10,width:'100%',maxWidth:300,flexWrap:'wrap'}}>
-        <button className="btn" style={{width:'100%',background:'rgba(200,168,75,0.1)',border:'1px solid var(--gold)',color:'var(--gold)'}} onClick={()=>setShowAvatarStudio(true)}>🎨 Customize Avatar</button>
-          <button className="btn" style={{flex:1}} onClick={()=>{setName(profile.name);setExperience(profile.experience);setPin(profile.pin||'');setMode('create');}}>Edit Profile</button>
-          <button className="btn" style={{flex:1,background:'transparent',color:'var(--muted)',borderColor:'var(--border)'}} onClick={onBack}>← Back</button>
-          <button className="btn" style={{width:'100%',background:'transparent',color:'var(--gold)',border:'1px solid var(--gold)'}} onClick={()=>setMode('questionnaire')}>🎯 Retake Interest Profile</button>
-          <button onClick={onSwitchPlayer} style={{width:'100%',background:'transparent',border:'1px solid var(--border)',color:'var(--muted)',padding:'8px',borderRadius:6,fontFamily:'Georgia,serif',fontSize:'0.75rem',cursor:'pointer'}}>🔄 Change Player</button>
-          <button onClick={handleDelete} style={{width:'100%',background:'transparent',border:'1px solid var(--red)',color:'var(--red)',padding:'8px',borderRadius:6,fontFamily:'Georgia,serif',fontSize:'0.75rem',cursor:'pointer',marginTop:4}}>Delete Profile</button>
-        </div>
+ 
+  if(mode==='noProfile')return(
+    <div className="screen center">
+      <div style={{width:'100%',maxWidth:340,textAlign:'center'}}>
+        <div style={{fontSize:'3rem',marginBottom:12}}>🔒</div>
+        <h2 style={{fontFamily:'Georgia,serif',color:'var(--gold)',fontSize:'1.6rem',marginBottom:8}}>No Saved Profile Yet</h2>
+        <p style={{color:'var(--muted)',fontSize:'0.9rem',marginBottom:22}}>Create a profile first. After that, Manage Profile and Member Locker will open directly.</p>
+        <button className="btn" style={{width:'100%',marginBottom:12}} onClick={()=>{
+          setName('');
+          setExperience('Beginner');
+          setProfile(null);
+          setProfileStep(0);
+          setProfileAnswers({});
+          setMode('create');
+        }}>
+          Create Profile →
+        </button>
+        <button onClick={()=>setMode('hub')} style={{background:'transparent',border:'none',color:'var(--muted)',fontFamily:'Georgia,serif',cursor:'pointer'}}>← Back</button>
       </div>
-    );
-  }
-
+    </div>
+  );
+ 
   if(mode==='create')return(
     <div className="screen center">
-      <p className="eyebrow">{profile?'Edit Profile':'Create Your Profile'}</p>
-      <div style={{width:'100%',maxWidth:300}}>
-        <input style={inputStyle} placeholder="Your Name" value={name} onChange={e=>setName(e.target.value)} maxLength={20}/>
-        <input style={inputStyle} placeholder="4-Digit PIN" value={pin} onChange={e=>setPin(e.target.value.replace(/\D/g,'').slice(0,4))} maxLength={4} type="password"/>
-        {pinError&&<p style={{color:'var(--red)',fontSize:'0.75rem',marginBottom:8}}>{pinError}</p>}
-        {cloudSyncing&&<p style={{color:'var(--gold)',fontSize:'0.75rem',marginBottom:8}}>☁️ Saving to cloud...</p>}
-        <p style={{fontSize:'0.65rem',letterSpacing:'3px',textTransform:'uppercase',color:'var(--muted)',marginBottom:8}}>Golf Experience</p>
-        <div style={{display:'flex',gap:6,marginBottom:20,flexWrap:'wrap'}}>
-          {EXPERIENCE_LEVELS.map(l=>(
-            <button key={l} onClick={()=>setExperience(l)} style={{background:experience===l?'var(--gold)':'transparent',color:experience===l?'var(--bg)':'var(--muted)',border:`1px solid ${experience===l?'var(--gold)':'var(--border)'}`,padding:'6px 12px',borderRadius:20,fontFamily:'Georgia,serif',fontSize:'0.72rem',cursor:'pointer'}}>{l}</button>
-          ))}
+      <p className="eyebrow">Create Your Profile</p>
+      <div style={{width:'100%',maxWidth:360}}>
+        <input style={inputStyle} placeholder="Your Name" value={name} onChange={e=>setName(e.target.value)} />
+        {cloudSyncing&&<p style={{color:'var(--gold)',fontSize:'0.8rem',marginBottom:10}}>Saving profile...</p>}
+        <div style={{marginBottom:14}}>
+          <p style={{fontSize:'0.65rem',letterSpacing:'3px',textTransform:'uppercase',color:'var(--muted)',marginBottom:6}}>
+            Question {profileStep+1} of {PROFILE_QUESTIONS.length}
+          </p>
+          <div style={{height:5,background:'var(--border)',borderRadius:99,overflow:'hidden'}}>
+            <div style={{
+              height:'100%',
+              width:`${((profileStep+1)/PROFILE_QUESTIONS.length)*100}%`,
+              background:'var(--gold)',
+              transition:'width 0.3s',
+            }} />
+          </div>
         </div>
-        <button className="btn" style={{width:'100%',marginBottom:10}} onClick={handleSave} disabled={!name.trim()}>Next — Interest Profile →</button>
-        <button onClick={()=>setMode(profile?'view':'menu')} style={{background:'transparent',border:'none',color:'var(--muted)',fontFamily:'Georgia,serif',fontSize:'0.8rem',cursor:'pointer',width:'100%'}}>← Back</button>
+        <div style={{background:'rgba(255,255,255,0.035)',border:'1px solid var(--border)',borderRadius:12,padding:16,marginBottom:16}}>
+          <h2 style={{fontFamily:'Georgia,serif',color:'var(--gold)',fontSize:'1.35rem',marginBottom:6}}>
+            {currentProfileQuestion.title}
+          </h2>
+          <p style={{color:'var(--muted)',fontSize:'0.82rem',marginBottom:14}}>
+            {currentProfileQuestion.multi ? 'Choose all that apply.' : 'Choose one.'}
+          </p>
+          <div style={{display:'grid',gap:8}}>
+            {currentProfileQuestion.options.map(opt=>{
+              const selected = currentProfileAnswer.includes(opt);
+              return(
+                <button key={opt} onClick={()=>toggleProfileAnswer(currentProfileQuestion,opt)} style={{
+                  background:selected?'rgba(200,168,75,0.18)':'transparent',
+                  color:selected?'var(--gold)':'var(--text)',
+                  border:`1px solid ${selected?'var(--gold)':'var(--border)'}`,
+                  padding:'11px 12px',
+                  borderRadius:9,
+                  fontFamily:'Georgia,serif',
+                  fontSize:'0.88rem',
+                  textAlign:'left',
+                  cursor:'pointer',
+                  display:'flex',
+                  alignItems:'center',
+                  gap:10
+                }}>
+                  <span style={{
+                    width:18,height:18,
+                    borderRadius:currentProfileQuestion.multi?4:'50%',
+                    flexShrink:0,
+                    border:`2px solid ${selected?'var(--gold)':'var(--border)'}`,
+                    background:selected?'var(--gold)':'transparent',
+                    display:'flex',alignItems:'center',justifyContent:'center',
+                  }}>
+                    {selected&&!currentProfileQuestion.multi&&<span style={{width:6,height:6,borderRadius:'50%',background:'var(--bg)'}}/>}
+                    {selected&&currentProfileQuestion.multi&&<span style={{fontSize:'0.6rem',color:'var(--bg)'}}>✓</span>}
+                  </span>
+                  {opt}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+        <div style={{display:'flex',gap:10,marginBottom:12}}>
+          <button onClick={()=>{if(profileStep>0)setProfileStep(profileStep-1);}} disabled={profileStep===0} style={{
+            flex:1,background:'transparent',border:'1px solid var(--border)',
+            color:profileStep===0?'var(--border)':'var(--muted)',
+            padding:'11px',borderRadius:8,fontFamily:'Georgia,serif',cursor:profileStep===0?'default':'pointer'
+          }}>← Back</button>
+          {profileStep<PROFILE_QUESTIONS.length-1 ? (
+            <button onClick={()=>{if(canContinueProfile)setProfileStep(profileStep+1);}} disabled={!canContinueProfile} style={{
+              flex:2,background:canContinueProfile?'var(--green)':'var(--surface)',
+              border:'none',color:canContinueProfile?'#fff':'var(--muted)',
+              padding:'11px',borderRadius:8,fontFamily:'Georgia,serif',fontWeight:'bold',
+              cursor:canContinueProfile?'pointer':'default'
+            }}>Next →</button>
+          ) : (
+            <button onClick={handleSave} disabled={!name.trim()||!canContinueProfile||cloudSyncing} style={{
+              flex:2,
+              background:name.trim()&&canContinueProfile&&!cloudSyncing?'var(--gold)':'var(--surface)',
+              border:'none',
+              color:name.trim()&&canContinueProfile&&!cloudSyncing?'var(--bg)':'var(--muted)',
+              padding:'11px',borderRadius:8,fontFamily:'Georgia,serif',fontWeight:'bold',
+              cursor:name.trim()&&canContinueProfile&&!cloudSyncing?'pointer':'default'
+            }}>
+              {cloudSyncing?'Saving...':'Save Profile →'}
+            </button>
+          )}
+        </div>
+        <button onClick={()=>setMode('hub')} style={{background:'transparent',border:'none',color:'var(--muted)',fontFamily:'Georgia,serif',fontSize:'0.85rem',cursor:'pointer',width:'100%'}}>
+          Cancel
+        </button>
       </div>
     </div>
   );
-
-  return(
+ 
+  if(mode==='manage'&&profile)return(
     <div className="screen center">
-      <div style={{width:60,height:60,borderRadius:'50%',border:'2px solid var(--gold)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'1.6rem',marginBottom:16,background:'radial-gradient(circle,#1a2e20 0%,var(--bg) 100%)'}}>🏌️</div>
-      <h2 style={{fontFamily:'Georgia,serif',color:'var(--gold)',marginBottom:4}}>Player Profile</h2>
-      <p style={{fontSize:'0.72rem',letterSpacing:'3px',textTransform:'uppercase',color:'var(--muted)',marginBottom:24}}>Your Golf Trivia Identity</p>
-      <div style={{width:'100%',maxWidth:280,display:'flex',flexDirection:'column',gap:10}}>
-        <button className="btn" onClick={()=>setMode('create')} style={{background:'var(--gold)',color:'var(--bg)',border:'none'}}>✨ Create New Profile</button>
-        <button onClick={onBack} style={{background:'transparent',border:'none',color:'var(--muted)',fontFamily:'Georgia,serif',fontSize:'0.8rem',cursor:'pointer'}}>← Back</button>
+      <div style={{width:'100%',maxWidth:340,textAlign:'center'}}>
+        <div style={{fontSize:'3rem',marginBottom:12}}>🛠️</div>
+        <h2 style={{fontFamily:'Georgia,serif',color:'var(--gold)',fontSize:'1.6rem'}}>Manage Profile</h2>
+        <p style={{color:'var(--muted)',marginBottom:20}}>{profile.name}</p>
+        <button className="btn" style={{width:'100%',marginBottom:12}} onClick={()=>{
+          setProfileStep(0);
+          setProfileAnswers({});
+          setMode('create');
+        }}>Edit Profile</button>
+        <button className="btn" style={{width:'100%',marginBottom:12}} onClick={onSwitchPlayer}>Switch Player</button>
+        <button onClick={()=>setMode('hub')} style={{background:'transparent',border:'none',color:'var(--muted)',fontFamily:'Georgia,serif',cursor:'pointer'}}>← Back</button>
       </div>
     </div>
   );
+ 
+  if(mode==='locker'&&profile)return(
+    <div className="screen center">
+      <div style={{width:'100%',maxWidth:340,textAlign:'center'}}>
+        <div style={{fontSize:'3rem',marginBottom:12}}>🏆</div>
+        <h2 style={{fontFamily:'Georgia,serif',color:'var(--gold)',fontSize:'1.6rem'}}>Member Locker</h2>
+        <p style={{color:'var(--muted)',marginBottom:18}}>{profile.name}</p>
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:20}}>
+          <div style={{border:'1px solid var(--border)',borderRadius:14,padding:14}}>
+            <div style={{fontSize:'1.4rem',color:'var(--gold)'}}>{profile.roundsPlayed||0}</div>
+            <div style={{fontSize:'0.65rem',color:'var(--muted)'}}>ROUNDS</div>
+          </div>
+          <div style={{border:'1px solid var(--border)',borderRadius:14,padding:14}}>
+            <div style={{fontSize:'1.4rem',color:'var(--gold)'}}>{profile.totalAnswers?Math.round((profile.correctAnswers/profile.totalAnswers)*100):0}%</div>
+            <div style={{fontSize:'0.65rem',color:'var(--muted)'}}>ACCURACY</div>
+          </div>
+          <div style={{border:'1px solid var(--border)',borderRadius:14,padding:14}}>
+            <div style={{fontSize:'1.4rem',color:'var(--gold)'}}>{profile.triviaHandicap??'—'}</div>
+            <div style={{fontSize:'0.65rem',color:'var(--muted)'}}>HANDICAP</div>
+          </div>
+          <div style={{border:'1px solid var(--border)',borderRadius:14,padding:14}}>
+            <div style={{fontSize:'1.4rem',color:'var(--gold)'}}>{profile.owsbr??'—'}</div>
+            <div style={{fontSize:'0.65rem',color:'var(--muted)'}}>O.W.S.B.R.</div>
+          </div>
+        </div>
+        {profile.calibrated&&<div style={{border:'1px solid var(--gold)',borderRadius:14,padding:14,marginBottom:16}}>
+          <div style={{fontSize:'1.4rem',color:'var(--gold)'}}>{profile.sbIndex?.toFixed(1)}</div>
+          <div style={{fontSize:'0.65rem',color:'var(--muted)'}}>SB INDEX</div>
+        </div>}
+        <p style={{color:'var(--muted)',fontSize:'0.85rem',marginBottom:18}}>Avatar and clothing options coming later.</p>
+        <button onClick={()=>setMode('hub')} style={{background:'transparent',border:'none',color:'var(--muted)',fontFamily:'Georgia,serif',cursor:'pointer'}}>← Back</button>
+      </div>
+    </div>
+  );
+ 
+  return null;
 }
-
-// ─── FUNDRAISER GAME ──────────────────────────────────────────────
-function FundraiserGame({profile,onComplete,onExit}:{
+ 
+// ─── FUNDRAISER TRIVIA ONLY ───────────────────────────────────────
+function FundraiserTriviaOnly({profile,onComplete,onExit}:{
   profile:Profile;
   onComplete:(correct:number,total:number)=>void;
   onExit:()=>void;
 }){
   const [questions,setQuestions]=useState<any[]>([]);
   const [holeIdx,setHoleIdx]=useState(0);
-  const [answered,setAnswered]=useState(false);
   const [picked,setPicked]=useState<number|null>(null);
   const [feedback,setFeedback]=useState('');
   const [timeLeft,setTimeLeft]=useState(15);
   const [correct,setCorrect]=useState(0);
   const [phase,setPhase]=useState<'question'|'feedback'>('question');
   const timerRef=useRef<any>(null);
-  const startTimeRef=useRef(Date.now());
-
-  const eventPar=profile.eventPar||getEventPar(profile.sbIndex||12);
-  const roundPar=Math.round(eventPar/4);
-  const isLoadingQuestions = questions.length === 0;
-  const q=questions[holeIdx];
-
-  useEffect(() => {
-    async function loadQuestions() {
-      try {
-        const res = await fetch('/questions/general_v1.json');
-        const data = await res.json();
-        const shuffled = [...data]
-          .sort(() => Math.random() - 0.5)
-          .slice(0, 18);
-        setQuestions(shuffled);
-      } catch (err) {
-        console.error('Failed to load questions', err);
-        const shuffled = [...PITTSBURGH_QUESTIONS]
-          .sort(() => Math.random() - 0.5)
-          .slice(0, 18);
-        setQuestions(shuffled);
-      }
-    }
-    loadQuestions();
-  }, []);
-
+ 
   useEffect(()=>{
-    if(isLoadingQuestions) return;
-    if(phase!=='question') return;
-
-    setAnswered(false);
-    setPicked(null);
+    const shuffled=[...PITTSBURGH_QUESTIONS].sort(()=>Math.random()-0.5).slice(0,18);
+    setQuestions(shuffled);
+  },[]);
+ 
+  useEffect(()=>{
+    if(questions.length===0||phase!=='question')return;
     setTimeLeft(15);
-    startTimeRef.current=Date.now();
-
-    if(timerRef.current) clearInterval(timerRef.current);
-
+    if(timerRef.current)clearInterval(timerRef.current);
     timerRef.current=setInterval(()=>{
       setTimeLeft(prev=>{
-        if(prev<=1){
-          clearInterval(timerRef.current);
-          return 0;
-        }
+        if(prev<=1){clearInterval(timerRef.current);submitAnswer(-1);return 0;}
         return prev-1;
       });
     },1000);
-
-    return()=>{
-      if(timerRef.current) clearInterval(timerRef.current);
-    };
-  },[holeIdx,phase,isLoadingQuestions]);
-
-  useEffect(()=>{
-    if(isLoadingQuestions) return;
-    if(timeLeft===0&&phase==='question'&&!answered) submitAnswer(-1);
-  },[timeLeft,isLoadingQuestions,phase,answered]);
-
+    return()=>{if(timerRef.current)clearInterval(timerRef.current);};
+  },[holeIdx,phase,questions.length]);
+ 
   function submitAnswer(i:number){
-    if(isLoadingQuestions) return;
-    if(!q) return;
-    if(answered) return;
-
-    setAnswered(true);
-    if(timerRef.current) clearInterval(timerRef.current);
-
+    if(picked!==null)return;
+    if(timerRef.current)clearInterval(timerRef.current);
+    const q=questions[holeIdx];
     const isCorrect=i!==-1&&i===q.correct;
     setPicked(i===-1?-99:i);
-
-    if(isCorrect) setCorrect(c=>c+1);
-
-    setFeedback(
-      i===-1
-        ? `⏱️ Time's up! Answer: ${q.answers[q.correct]}`
-        : getFundraiserFeedback(isCorrect,q.difficulty||'medium')
-    );
-
+    if(isCorrect)setCorrect(c=>c+1);
+    setFeedback(i===-1?`⏱️ Time's up! Correct answer: ${q.answers[q.correct]}`:isCorrect?'✅ Correct!':'❌ Wrong answer. Correct: '+q.answers[q.correct]);
     setPhase('feedback');
   }
-
+ 
   function nextHole(){
-    if(holeIdx+1>=18){
-      onComplete(correct,18);
-    } else {
-      setHoleIdx(i=>i+1);
-      setPhase('question');
-      setFeedback('');
-    }
+    if(holeIdx+1>=18){onComplete(correct,18);return;}
+    setHoleIdx(i=>i+1);setPicked(null);setFeedback('');setPhase('question');
   }
-
-  if (isLoadingQuestions) {
-    return (
-      <div className="screen center">
-        <h2 style={{fontFamily:'Georgia,serif',color:'var(--gold)',marginBottom:8}}>
-          Loading Fundraiser
-        </h2>
-        <p style={{color:'var(--muted)',textAlign:'center',marginBottom:20}}>
-          Getting questions ready...
-        </p>
-        <button
-          onClick={onExit}
-          style={{
-            background:'transparent',
-            border:'none',
-            color:'var(--muted)',
-            fontFamily:'Georgia,serif',
-            fontSize:'0.8rem',
-            cursor:'pointer'
-          }}
-        >
-          ← Back
-        </button>
-      </div>
-    );
-  }
-
-  const vsPar=formatVsPar(
-    calcFundraiserRoundScore(correct,holeIdx-correct,roundPar),
-    roundPar
+ 
+  if(questions.length===0)return(
+    <div className="screen center">
+      <p style={{color:'var(--muted)'}}>Loading questions...</p>
+      <button onClick={onExit} style={{marginTop:20,background:'transparent',border:'none',color:'var(--muted)',fontFamily:'Georgia,serif',cursor:'pointer'}}>← Back</button>
+    </div>
   );
-
+ 
+  const q=questions[holeIdx];
+  const config=getFundraiserConfig();
+ 
   return(
     <div className="screen">
       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',background:'rgba(6,15,10,0.95)',border:'1px solid var(--border)',borderRadius:10,padding:'10px 14px',marginBottom:14}}>
@@ -1211,62 +1426,56 @@ function FundraiserGame({profile,onComplete,onExit}:{
           <div style={{fontFamily:'Georgia,serif',fontSize:'1.8rem',color:'var(--gold)',lineHeight:1}}>{holeIdx+1}</div>
           <div style={{fontSize:'0.65rem',color:'var(--muted)'}}>of 18</div>
         </div>
-
         <div style={{textAlign:'center',flex:1}}>
           {profile.division&&<div style={{fontSize:'0.65rem',color:'var(--gold)',marginBottom:2}}>🏫 {profile.division}</div>}
-          <div style={{fontSize:'0.72rem',color:'var(--muted)',letterSpacing:'2px',textTransform:'uppercase'}}>{getFundraiserConfig().eventName}</div>
-          <div style={{fontSize:'0.85rem',color:'var(--text)',fontFamily:'Georgia,serif'}}>Par {roundPar} · Event Par {eventPar}</div>
+          <div style={{fontSize:'0.72rem',color:'var(--muted)',letterSpacing:'2px',textTransform:'uppercase'}}>{config.eventName}</div>
+          <div style={{fontSize:'0.85rem',color:'var(--text)',fontFamily:'Georgia,serif'}}>{correct} correct</div>
         </div>
-
         <div style={{textAlign:'center'}}>
           <div style={{fontSize:'0.58rem',textTransform:'uppercase',letterSpacing:'2px',color:'var(--muted)'}}>SCORE</div>
           <div style={{fontFamily:'Georgia,serif',fontSize:'1.2rem',color:'var(--green-lt)',lineHeight:1}}>{correct}/{holeIdx}</div>
           <button onClick={onExit} style={{background:'transparent',border:'1px solid var(--border)',color:'var(--muted)',padding:'2px 8px',borderRadius:4,fontSize:'0.65rem',cursor:'pointer',marginTop:4}}>✕</button>
         </div>
       </div>
-
+ 
       <div style={{height:4,background:'var(--border)',borderRadius:2,marginBottom:14,overflow:'hidden'}}>
         <div style={{height:'100%',background:'linear-gradient(90deg,var(--green),var(--green-lt))',width:`${(holeIdx/18)*100}%`,transition:'width 0.4s'}}/>
       </div>
-
-      {phase==='question'&&q&&(
+ 
+      {phase==='question'&&(
         <>
-          <div className="timer-wrap" style={{marginBottom:16,border:'1px solid var(--border)',borderRadius:8,overflow:'hidden',position:'relative',height:40}}>
-            <div className={`timer-bar ${timeLeft<=5?'danger':''}`} style={{width:`${(timeLeft/15)*100}%`,height:'100%',transition:'width 1s linear'}}/>
-            <span className={`timer-label ${timeLeft<=5?'danger':''}`} style={{position:'absolute',top:'50%',left:'50%',transform:'translate(-50%,-50%)',fontSize:'1.1rem',fontWeight:'bold',letterSpacing:'2px'}}>{timeLeft}s</span>
+          <div className="timer-wrap">
+            <div className={`timer-bar ${timeLeft<=5?'danger':''}`} style={{width:`${(timeLeft/15)*100}%`}}/>
+            <span className={`timer-label ${timeLeft<=5?'danger':''}`}>{timeLeft}s</span>
           </div>
-
           {q.cat&&<p style={{fontSize:'0.65rem',letterSpacing:'2px',textTransform:'uppercase',color:'var(--muted)',textAlign:'center',marginBottom:8}}>{q.cat}</p>}
-
           <div className="card">
             <p className="q-text">{q.text}</p>
             <div className="answers">
-              {q.answers.map((a:string,i:number)=>(
-                <button key={i} className="ans" onClick={()=>submitAnswer(i)} disabled={answered}>
+              {q.answers.map((a:string,i:number)=>{
+                let cls='ans';
+                if(picked!==null&&i===q.correct)cls+=' correct';
+                else if(picked===i)cls+=' wrong';
+                return<button key={i} className={cls} onClick={()=>submitAnswer(i)} disabled={picked!==null}>
                   <span className="ans-letter">{String.fromCharCode(65+i)}</span>{a}
-                </button>
-              ))}
+                </button>;
+              })}
             </div>
           </div>
         </>
       )}
-
-      {phase==='feedback'&&q&&(
+ 
+      {phase==='feedback'&&(
         <div className="feedback">
-          <div style={{textAlign:'center',marginBottom:12}}>
-            <p style={{fontFamily:'Georgia,serif',fontSize:'1.1rem',color:picked===q.correct?'var(--green-lt)':'var(--red)',marginBottom:4}}>{feedback}</p>
-            {picked!==q.correct&&<p style={{fontSize:'0.82rem',color:'var(--muted)'}}>Correct: {q.answers[q.correct]}</p>}
-          </div>
-
-          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8,marginBottom:16}}>
-            {[['Hole',`${holeIdx+1}/18`],['Correct',`${correct}`],['Running',vsPar]].map(([l,v])=>(
+          <p style={{fontFamily:'Georgia,serif',fontSize:'1.1rem',color:feedback.startsWith('✅')?'var(--green-lt)':'var(--red)',marginBottom:12,textAlign:'center'}}>{feedback}</p>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:16}}>
+            {[['Hole',`${holeIdx+1}/18`],['Correct',`${correct}`]].map(([l,v])=>(
               <div key={l} style={{background:'var(--surface)',border:'1px solid var(--border)',borderRadius:6,padding:'8px',textAlign:'center'}}>
                 <div style={{fontSize:'0.6rem',textTransform:'uppercase',letterSpacing:'1px',color:'var(--muted)',marginBottom:4}}>{l}</div>
                 <div style={{fontFamily:'Georgia,serif',fontSize:'1rem',color:'var(--gold)'}}>{v}</div>
               </div>
             ))}
           </div>
-
           <button className="btn-next" onClick={nextHole}>
             {holeIdx+1>=18?'Finish Round →':`Hole ${holeIdx+2} →`}
           </button>
@@ -1274,9 +1483,7 @@ function FundraiserGame({profile,onComplete,onExit}:{
       )}
     </div>
   );
-}
-
-// ─── MAIN APP ─────────────────────────────────────────────────────
+}// ─── MAIN APP ─────────────────────────────────────────────────────
 export default function App(){
   const [screen,setScreen]=useState('splash');
   const [fundraiserLeaderboard,setFundraiserLeaderboard]=useState<FundraiserLeaderboardEntry[]>([]);
@@ -1285,6 +1492,8 @@ export default function App(){
   const [whoPin,setWhoPin]=useState('');
   const [whoError,setWhoError]=useState('');
   const [whoLoading,setWhoLoading]=useState(false);
+  const [deleteProfileName,setDeleteProfileName]=useState<string|null>(null);
+  const [deleteProfileConfirm,setDeleteProfileConfirm]=useState('');
   const [showProfile,setShowProfile]=useState(false);
   const [showCategoryForm,setShowCategoryForm]=useState(false);
   const [showPicker,setShowPicker]=useState(false);
@@ -1328,30 +1537,29 @@ export default function App(){
   const [multiUsedQ,setMultiUsedQ]=useState<number[]>([]);
   const hole=COURSE[holeIdx];
   const multiHole=COURSE[multiHoleIdx];
-
+ 
   useEffect(()=>{
     if(!isMulti||multiPhase!=='question'||multiPicked!==null||multiTimeLeft===null)return;
     if(multiTimeLeft===0){handleMultiAnswer(-1);return;}
     const t=setTimeout(()=>setMultiTimeLeft(n=>(n??1)-1),1000);
     return()=>clearTimeout(t);
   },[multiTimeLeft,multiPhase,multiPicked,isMulti]);
-
+ 
   useEffect(()=>{
     if(phase!=='question'||picked!==null||timeLeft===null)return;
     if(timeLeft===0){handleAnswer(-1);return;}
     const t=setTimeout(()=>setTimeLeft(n=>(n??1)-1),1000);
     return()=>clearTimeout(t);
   },[timeLeft,phase,picked]);
-
+ 
   useEffect(()=>{
     if(screen==='fundraiser_result'){
       loadFundraiserLeaderboard(getFundraiserConfig().eventName).then(setFundraiserLeaderboard);
     }
   },[screen]);
-
-
+ 
   function handleSwitchPlayer(){removeActiveProfile();setShowProfile(false);setShowPicker(true);}
-
+ 
   function startMultiRound(){
     const pool=Object.values(QUESTIONS).flat() as any[];
     const idx=Math.floor(Math.random()*pool.length);
@@ -1359,7 +1567,7 @@ export default function App(){
     setMultiPhase('question');setMultiPlayerIdx(0);setMultiAnsweredCount(0);setMultiHoleResults([]);
     setMultiScores(activePlayers.map(()=>[]));setMultiHoleIdx(0);setScreen('multi');
   }
-
+ 
   function loadNextMultiQuestion(){
     const pool=Object.values(QUESTIONS).flat() as any[];
     const available=pool.map((_:any,i:number)=>i).filter((i:number)=>!multiUsedQ.includes(i));
@@ -1367,7 +1575,7 @@ export default function App(){
     setMultiQuestion(pool[idx]);setMultiUsedQ(prev=>[...prev,idx]);
     setMultiPicked(null);setMultiTimeLeft(TIMER_SECONDS);setMultiPhase('question');
   }
-
+ 
   function handleMultiAnswer(i:number){
     if(multiPicked!==null)return;
     setMultiTimeLeft(null);setMultiPicked(i);
@@ -1381,71 +1589,46 @@ export default function App(){
       setTimeout(()=>setMultiPhase('hole_results'),400);
     }else{setTimeout(()=>{setMultiPlayerIdx(multiPlayerIdx+1);loadNextMultiQuestion();},400);}
   }
-
+ 
   function nextMultiHole(){
     if(multiHoleIdx>=COURSE.length-1){setMultiPhase('end');return;}
     const next=multiHoleIdx+1;
     setMultiHoleIdx(next);setMultiPlayerIdx(0);setMultiAnsweredCount(0);setMultiHoleResults([]);
     loadNextMultiQuestion();setMultiPhase('question');
   }
-
-  function buildRoundPool():any[]{
-    const profile=loadProfile();
-    let pool:any[]=isGuest||!profile||!profile.questionnaire?Object.values(QUESTIONS).flat() as any[]:getProfilePool(profile);
-    pool=pool.map(q=>{
-      if(q.cat&&!Object.keys(QUESTIONS).includes(q.cat)){
-        const ca=q.answers[q.correct],sh=[...q.answers].sort(()=>Math.random()-0.5);
-        return{...q,answers:sh,correct:sh.indexOf(ca)};
-      }return q;
-    });
-    for(let i=pool.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[pool[i],pool[j]]=[pool[j],pool[i]];}
-    fetch('/questions/general_v1.json').then(r=>r.json()).then((data:any[])=>{
-      const extra=data.sort(()=>Math.random()-0.5);
-      setRoundPool([...pool,...extra]);
-      setRoundPoolIdx(0);
-    }).catch(()=>{setRoundPool(pool);setRoundPoolIdx(0);});
-    return pool;
-  }
-
+ 
   async function startRound(){
     if(!playerNames[0].trim())return;
     if(isMulti){startMultiRound();return;}
     const profile=loadProfile();
-    let pool:any[]=[];
-    try{
-      const res=await fetch('/questions/general_v1.json');
-      const data=await res.json();
-      pool=[...data].sort(()=>Math.random()-0.5);
-    }catch{
-      pool=isGuest||!profile||!profile.questionnaire?Object.values(QUESTIONS).flat() as any[]:getProfilePool(profile);
-    }
+    const pool=isGuest||!profile||!profile.questionnaire?Object.values(QUESTIONS).flat() as any[]:getProfilePool(profile);
     setRoundPool(pool);setRoundPoolIdx(0);setRoundCorrect(0);setRoundTotal(0);
     setScreen('game');setHoleIdx(0);setScorecard([]);resetHole(0);
   }
-
+ 
   function resetHole(idx:number){
     const h=COURSE[idx];
     setRemaining(h.yards);setStrokes(0);setLie('Tee Box');setFeedback('');
     setClub(null);setQuestion(null);setPicked(null);setTimeLeft(null);
     setUsedQ({});setPhase('club');setIsPutting(false);setWind(generateWind());
   }
-
+ 
   function getNextFromPool():any{
     if(roundPool.length===0){const fb=Object.values(QUESTIONS).flat() as any[];return fb[Math.floor(Math.random()*fb.length)];}
     const idx=roundPoolIdx%roundPool.length,q=roundPool[idx];setRoundPoolIdx(idx+1);return q;
   }
-
+ 
   function chooseClub(c:string){
     const q=getNextFromPool();
     setClub(c);setQuestion(q);setQIdx(roundPoolIdx);setPicked(null);setFeedback('');setTimeLeft(TIMER_SECONDS);setPhase('question');
   }
-
+ 
   function loadPutt(){
     const q=getNextFromPool();
     setClub('putter');setQuestion(q);setQIdx(roundPoolIdx);setPicked(null);setFeedback('');
     setTimeLeft(TIMER_SECONDS);setIsPutting(true);setPhase('question');
   }
-
+ 
   function handleAnswer(i:number){
     if(picked!==null)return;
     const secondsLeft=timeLeft??0;setTimeLeft(null);setPicked(i);
@@ -1464,10 +1647,10 @@ export default function App(){
     setStrokes(s=>s+1+penaltyCount);setRemaining(finalRemaining);setLie(finalLie);
     setUsedQ(prev=>({...prev,[club!]:[...(prev[club!]||[]),qIdx]}));
     setRoundTotal(t=>t+1);if(correct)setRoundCorrect(c=>c+1);
-    const shotNote=correct?`✅ ${clubData.name} — ${landNote}.`:`❌ Wrong! ${clubData.name} — ${landNote}.`;
+    const shotNote=correct?`✅ Correct! Your ${clubData.name} — ${landNote}.`:`❌ Wrong answer. Your ${clubData.name} — ${landNote}.`;
     setFeedback(shotNote+(penalty?`\n\n${penalty.penaltyNote}`:''));setPhase('feedback');
   }
-
+ 
   function nextShot(){
     if(lie==='Holed'){
       const newCard=[...scorecard,strokes];setScorecard(newCard);
@@ -1478,49 +1661,82 @@ export default function App(){
     if(remaining<=20){loadPutt();return;}
     setClub(null);setQuestion(null);setPicked(null);setFeedback('');setPhase('club');
   }
-
+ 
   if(showPicker)return(
     <ProfilePickerScreen
-      onSelect={p=>{setPlayerNames([p.name]);setShowPicker(false);setScreen('modes');}}
-      onNew={()=>{setShowPicker(false);setShowProfile(true);}}
-      onBack={()=>{setShowPicker(false);setScreen('modes');}}
+      onSelect={p=>{
+        setPlayerNames([p.name]);
+        setShowPicker(false);
+        setScreen(screen==='fundraiser' ? 'fundraiser' : 'menu');
+      }}
+      onNew={()=>{
+        setShowPicker(false);
+        setShowProfile(true);
+      }}
+      onBack={()=>{
+        setShowPicker(false);
+        setScreen(screen==='fundraiser' ? 'fundraiser_menu' : 'menu');
+      }}
     />
   );
   if(showCategoryForm)return<CategoryRequestForm onClose={()=>setShowCategoryForm(false)}/>;
   if(showProfile)return(
     <ProfileScreen
-      onBack={()=>{setShowProfile(false);setScreen('modes');}}
+      onBack={()=>{setShowProfile(false);setScreen('menu');}}
       onSwitchPlayer={handleSwitchPlayer}
     />
   );
-
+ 
   if(screen==='fundraiser'){
     const profile=loadProfile();
-    if(!profile?.calibrated)return(
+
+    if(!profile)return(
       <div className="screen center">
-        <h2 style={{fontFamily:'Georgia,serif',color:'var(--gold)',marginBottom:8}}>SB Index Required</h2>
-        <p style={{color:'var(--muted)',textAlign:'center',marginBottom:20}}>Complete calibration first to play fundraiser mode.</p>
-        <button className="btn" onClick={()=>setShowProfile(true)}>Set Up Profile →</button>
-        <button onClick={()=>setScreen('modes')} style={{background:'transparent',border:'none',color:'var(--muted)',fontFamily:'Georgia,serif',fontSize:'0.8rem',cursor:'pointer',marginTop:16}}>← Back</button>
+        <h2 style={{fontFamily:'Georgia,serif',color:'var(--gold)',marginBottom:8}}>Profile Required</h2>
+        <p style={{color:'var(--muted)',textAlign:'center',marginBottom:20}}>
+          Create a new profile or select an existing profile to play this fundraiser.
+        </p>
+
+        <button className="btn" onClick={()=>setShowProfile(true)} style={{width:'100%',maxWidth:280,marginBottom:12}}>
+          Set Up Profile →
+        </button>
+
+        <button className="btn" onClick={()=>setShowPicker(true)} style={{width:'100%',maxWidth:280,marginBottom:12}}>
+          Select Existing Profile →
+        </button>
+
+        <button onClick={()=>setScreen('fundraiser_menu')} style={{background:'transparent',border:'none',color:'var(--muted)',fontFamily:'Georgia,serif',fontSize:'0.8rem',cursor:'pointer',marginTop:8}}>
+          ← Back
+        </button>
       </div>
     );
+
     if(isFundraiserExpired())return(
       <div className="screen center">
         <div style={{fontSize:'3rem',marginBottom:16}}>🏁</div>
         <h2 style={{fontFamily:'Georgia,serif',color:'var(--gold)',marginBottom:8}}>Fundraiser Ended</h2>
-        <p style={{color:'var(--muted)',textAlign:'center',marginBottom:24}}>{getFundraiserConfig().eventName} has ended. Thank you for playing!</p>
-        <button onClick={()=>setScreen('modes')} style={{background:'transparent',border:'none',color:'var(--muted)',fontFamily:'Georgia,serif',fontSize:'0.8rem',cursor:'pointer'}}>← Back to Home</button>
+        <p style={{color:'var(--muted)',textAlign:'center',marginBottom:24}}>
+          {getFundraiserConfig().eventName} has ended. Thank you for playing!
+        </p>
+        <button onClick={()=>setScreen('fundraiser_menu')} style={{background:'transparent',border:'none',color:'var(--muted)',fontFamily:'Georgia,serif',fontSize:'0.8rem',cursor:'pointer'}}>
+          ← Back
+        </button>
       </div>
     );
+
     return(
-      <FundraiserGame
+      <FundraiserTriviaOnly
         profile={profile}
-        onComplete={(correct,total)=>{setFundraiserCorrect(correct);setScreen('fundraiser_result');}}
-        onExit={()=>setScreen('modes')}
+        onComplete={(correct,total)=>{
+          setFundraiserCorrect(correct);
+          setRoundTotal(total);
+          setScreen('fundraiser_result');
+        }}
+        onExit={()=>setScreen('fundraiser_menu')}
       />
     );
   }
-
+ 
   if(screen==='fundraiser_result'){
     const profile=loadProfile();
     const eventPar=profile?.eventPar||getEventPar(profile?.sbIndex||12);
@@ -1529,36 +1745,14 @@ export default function App(){
     const vsPar=rawScore-roundPar;
     const parLabel=vsPar<0?`${vsPar}`:vsPar===0?'E':`+${vsPar}`;
     const parColor=vsPar<0?'var(--gold)':vsPar===0?'var(--green-lt)':'var(--red)';
-    const msg =
-  vsPar <= -3
-    ? { emoji: '🦅', label: 'Eagle Round!' }
-    : vsPar <= -1
-    ? { emoji: '🐦', label: 'Under Par!' }
-    : vsPar === 0
-    ? { emoji: '⛳', label: 'Even Par' }
-    : { emoji: '📌', label: 'Over Par' };
-
-    if (profile) {
-      const roundScore = rawScore;
-      const roundScoreVsPar = vsPar;
-      void updateFundraiserLeaderboard(
-        getFundraiserConfig().eventName,
-        profile,
-        fundraiserCorrect,
-        18,
-        roundScore,
-        roundScoreVsPar
-      );
-      const updatedProfile = {
-        ...profile,
-        roundsPlayed: (profile.roundsPlayed || 0) + 1,
-        correctAnswers: (profile.correctAnswers || 0) + fundraiserCorrect,
-        totalAnswers: (profile.totalAnswers || 0) + 18,
-      };
+    const msg=vsPar<=-3?{emoji:'🦅',label:'Eagle Round!'}:vsPar<=-1?{emoji:'🐦',label:'Under Par!'}:vsPar===0?{emoji:'⛳',label:'Even Par'}:{emoji:'📌',label:'Over Par'};
+ 
+    if(profile){
+      const roundScore=rawScore,roundScoreVsPar=vsPar;
+      void updateFundraiserLeaderboard(getFundraiserConfig().eventName,profile,fundraiserCorrect,18,roundScore,roundScoreVsPar);
+      const updatedProfile={...profile,roundsPlayed:(profile.roundsPlayed||0)+1,correctAnswers:(profile.correctAnswers||0)+fundraiserCorrect,totalAnswers:(profile.totalAnswers||0)+18};
       saveProfile(updatedProfile);
-      if (updatedProfile.pin) {
-        cloudSaveProfile(updatedProfile, updatedProfile.pin).catch(() => {});
-      }
+      if(updatedProfile.pin){cloudSaveProfile(updatedProfile,updatedProfile.pin).catch(()=>{});}
     }
     return(
       <div className="screen center">
@@ -1578,7 +1772,7 @@ export default function App(){
           <p style={{fontSize:'0.62rem',letterSpacing:'3px',textTransform:'uppercase',color:'var(--muted)',marginBottom:10,textAlign:'center'}}>
             {profile?.division||'Open'} Leaderboard
           </p>
-          {(() => {
+          {(()=>{
             const allEntries=fundraiserLeaderboard;
             const divLB=allEntries.filter(e=>e.division===(profile?.division||'Open'));
             const myEntry=divLB.find(e=>e.name===profile?.name);
@@ -1609,194 +1803,242 @@ export default function App(){
           })()}
         </div>
         <div style={{display:'flex',gap:10,width:'100%',maxWidth:300}}>
-        {(() => {
-  const allE=fundraiserLeaderboard;
-  const myE=allE.find(e=>e.name===profile?.name&&e.division===(profile?.division||'Open'));
-  const completed=(myE?.roundsCompleted||0)>=4;
-  return completed?(
-    <div style={{display:'flex',gap:8,flex:1}}>
-      <button className="btn" style={{flex:1,fontSize:'0.72rem'}} onClick={()=>setScreen('fundraiser')}>Practice Round</button>
-      <button className="btn" style={{flex:1,fontSize:'0.72rem',background:'transparent',border:'1px solid var(--gold)',color:'var(--gold)'}} onClick={()=>setScreen('start')}>Regular Golf →</button>
-    </div>
-  ):(
-    <button className="btn" style={{flex:1}} onClick={()=>setScreen('fundraiser')}>Play Again</button>
-  );
-})()}
-          <button className="btn" style={{flex:1,background:'transparent',color:'var(--muted)',borderColor:'var(--border)'}} onClick={()=>setScreen('modes')}>← Home</button>
+          {(()=>{
+            const allE=fundraiserLeaderboard;
+            const myE=allE.find(e=>e.name===profile?.name&&e.division===(profile?.division||'Open'));
+            const completed=(myE?.roundsCompleted||0)>=4;
+            return completed?(
+              <div style={{display:'flex',gap:8,flex:1}}>
+                <button className="btn" style={{flex:1,fontSize:'0.72rem'}} onClick={()=>setScreen('fundraiser_menu')}>Practice Round</button>
+                <button className="btn" style={{flex:1,fontSize:'0.72rem',background:'transparent',border:'1px solid var(--gold)',color:'var(--gold)'}} onClick={()=>setScreen('start')}>Regular Golf →</button>
+              </div>
+            ):(
+              <button className="btn" style={{flex:1}} onClick={()=>setScreen('fundraiser_menu')}>Play Again</button>
+            );
+          })()}
+          <button className="btn" style={{flex:1,background:'transparent',color:'var(--muted)',borderColor:'var(--border)'}} onClick={()=>setScreen('menu')}>← Home</button>
         </div>
       </div>
     );
   }
-
+ 
   if(screen==='splash')return(
-    <div style={{minHeight:'100vh',background:'radial-gradient(ellipse at top,#0a2e1a 0%,#051208 60%,#020a05 100%)',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',padding:'24px 16px',gap:0,position:'relative',overflow:'hidden'}}>
-      {/* Background glow effects */}
-      <div style={{position:'absolute',top:'10%',left:'50%',transform:'translateX(-50%)',width:300,height:300,background:'radial-gradient(circle,rgba(200,168,75,0.08) 0%,transparent 70%)',pointerEvents:'none'}}/>
-      <div style={{position:'absolute',bottom:'20%',left:'10%',width:200,height:200,background:'radial-gradient(circle,rgba(34,139,34,0.06) 0%,transparent 70%)',pointerEvents:'none'}}/>
-
-      {/* Logo */}
+    <div style={{minHeight:'100vh',background:'radial-gradient(ellipse at top,#0a2e1a 0%,#051208 60%,#020a05 100%)',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',padding:'24px 16px'}}>
       <img src="/logo.png" alt="Scramble Brains" style={{width:130,height:130,objectFit:'contain',marginBottom:16,filter:'drop-shadow(0 0 20px rgba(200,168,75,0.3))'}}/>
-
-      {/* Title */}
-      <div style={{textAlign:'center',marginBottom:8}}>
-        <div style={{fontFamily:'Georgia,serif',fontSize:'clamp(2.8rem,10vw,4.2rem)',color:'var(--gold)',letterSpacing:'3px',lineHeight:1,textShadow:'0 0 40px rgba(200,168,75,0.4)'}}>SCRAMBLE</div>
+      <div style={{textAlign:'center',marginBottom:48}}>
+        <div style={{fontFamily:'Georgia,serif',fontSize:'clamp(2.8rem,10vw,4.2rem)',color:'var(--gold)',letterSpacing:'3px',lineHeight:1}}>SCRAMBLE</div>
         <div style={{fontFamily:'Georgia,serif',fontSize:'clamp(1.4rem,5vw,2rem)',color:'rgba(200,168,75,0.7)',letterSpacing:'8px',marginTop:4}}>BRAINS</div>
+        <p style={{fontSize:'0.65rem',letterSpacing:'4px',textTransform:'uppercase',color:'var(--muted)',marginTop:12}}>Trivia · Golf · Strategy</p>
       </div>
-
-      {/* Tagline */}
-      <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:40,marginTop:8}}>
-        <div style={{height:1,width:40,background:'var(--gold)',opacity:0.3}}/>
-        <p style={{fontSize:'0.65rem',letterSpacing:'4px',textTransform:'uppercase',color:'var(--muted)',margin:0}}>Trivia · Golf · Strategy</p>
-        <div style={{height:1,width:40,background:'var(--gold)',opacity:0.3}}/>
-      </div>
-
-      {/* Main buttons */}
-      <div style={{display:'flex',gap:12,marginBottom:16,width:'100%',maxWidth:340}}>
-        {/* PLAY button */}
-        <button onClick={()=>setScreen('who')} style={{flex:2,padding:'20px 12px',background:'linear-gradient(135deg,#1a6b2e 0%,#0d3d1a 100%)',border:'2px solid #2d9e4a',borderRadius:16,cursor:'pointer',display:'flex',flexDirection:'column',alignItems:'center',gap:8,boxShadow:'0 4px 20px rgba(45,158,74,0.3),inset 0 1px 0 rgba(255,255,255,0.1)'}}>
-          <div style={{width:48,height:48,borderRadius:'50%',background:'rgba(45,158,74,0.3)',border:'2px solid #2d9e4a',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'1.6rem'}}>▶</div>
-          <div style={{fontFamily:'Georgia,serif',fontSize:'1.1rem',color:'#fff',letterSpacing:'2px',fontWeight:'bold'}}>PLAY</div>
-          <div style={{fontSize:'0.6rem',color:'rgba(255,255,255,0.5)',letterSpacing:'2px'}}>START GAME</div>
-        </button>
-
-        <div style={{display:'flex',flexDirection:'column',gap:12,flex:1}}>
-          {/* PROFILE button */}
-          <button onClick={()=>setShowProfile(true)} style={{flex:1,padding:'14px 8px',background:'linear-gradient(135deg,#1a2e6b 0%,#0d1a3d 100%)',border:'2px solid #2d4a9e',borderRadius:16,cursor:'pointer',display:'flex',flexDirection:'column',alignItems:'center',gap:4,boxShadow:'0 4px 20px rgba(45,74,158,0.3)'}}>
-            <div style={{fontSize:'1.4rem'}}>👤</div>
-            <div style={{fontFamily:'Georgia,serif',fontSize:'0.75rem',color:'#fff',letterSpacing:'2px',fontWeight:'bold'}}>PROFILE</div>
-          </button>
-
-          {/* SETTINGS button */}
-          <button onClick={()=>setScreen('settings')} style={{flex:1,padding:'14px 8px',background:'linear-gradient(135deg,#4b1a6b 0%,#2a0d3d 100%)',border:'2px solid #7e2d9e',borderRadius:16,cursor:'pointer',display:'flex',flexDirection:'column',alignItems:'center',gap:4,boxShadow:'0 4px 20px rgba(126,45,158,0.3)'}}>
-            <div style={{fontSize:'1.4rem'}}>⚙️</div>
-            <div style={{fontFamily:'Georgia,serif',fontSize:'0.75rem',color:'#fff',letterSpacing:'2px',fontWeight:'bold'}}>SETTINGS</div>
-          </button>
-        </div>
-      </div>
-
-      {/* Fundraiser quick access */}
-      <button onClick={()=>setScreen('fundraiser_menu')} style={{width:'100%',maxWidth:340,padding:'14px',background:'rgba(200,168,75,0.08)',border:'1px solid var(--gold)',borderRadius:12,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',gap:10}}>
-        <span style={{fontSize:'1.2rem'}}>🏫</span>
-        <div style={{textAlign:'left'}}>
-          <div style={{fontFamily:'Georgia,serif',fontSize:'0.9rem',color:'var(--gold)',letterSpacing:'1px'}}>Fundraiser Mode</div>
-          <div style={{fontSize:'0.6rem',color:'var(--muted)',letterSpacing:'2px',textTransform:'uppercase'}}>Compete for your cause</div>
-        </div>
-        <span style={{color:'var(--gold)',marginLeft:'auto'}}>→</span>
+      <button onClick={()=>setScreen('menu')} style={{width:'100%',maxWidth:300,padding:'20px',background:'linear-gradient(135deg,#1a6b2e 0%,#0d3d1a 100%)',border:'2px solid #2d9e4a',borderRadius:16,cursor:'pointer',fontFamily:'Georgia,serif',fontSize:'1.2rem',color:'#fff',letterSpacing:'3px',fontWeight:'bold',boxShadow:'0 4px 20px rgba(45,158,74,0.3)'}}>
+        ENTER
       </button>
-
-      {/* Version */}
-      <p style={{fontSize:'0.6rem',color:'rgba(255,255,255,0.15)',letterSpacing:'2px',marginTop:24}}>SCRAMBLE BRAINS v1.0</p>
     </div>
   );
-
+ 
+  if(screen==='menu')return(
+    <div style={{minHeight:'100vh',background:'radial-gradient(circle at top,#123d24 0%,#061409 55%,#020603 100%)',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',padding:'28px 18px'}}>
+      <div style={{textAlign:'center',marginBottom:26}}>
+        <img src="/logo.png" alt="Scramble Brains" style={{width:96,height:96,objectFit:'contain',marginBottom:10,filter:'drop-shadow(0 0 18px rgba(200,168,75,0.45))'}}/>
+        <div style={{fontFamily:'Georgia,serif',fontSize:'1.55rem',fontWeight:900,color:'#f5e7b8',letterSpacing:'1px'}}>Scramble Brains</div>
+        <div style={{fontSize:'0.72rem',color:'rgba(255,255,255,0.68)',letterSpacing:'2px',textTransform:'uppercase',marginTop:4}}>Trivia Golf</div>
+      </div>
+      <div style={{width:'100%',maxWidth:390,display:'flex',flexDirection:'column',gap:14}}>
+        <button onClick={()=>setShowProfile(true)} style={{width:'100%',minHeight:76,padding:'18px 20px',borderRadius:20,border:'3px solid #5f7cff',background:'linear-gradient(135deg,#3557ff 0%,#16235f 100%)',color:'#fff',display:'flex',alignItems:'center',gap:16,cursor:'pointer',boxShadow:'0 8px 24px rgba(53,87,255,0.35)'}}>
+          <div style={{fontSize:'2rem'}}>👤</div>
+          <div style={{textAlign:'left'}}>
+            <div style={{fontFamily:'Georgia,serif',fontSize:'1.25rem',fontWeight:900,letterSpacing:'1px'}}>PROFILE</div>
+            <div style={{fontSize:'0.72rem',opacity:0.75,letterSpacing:'1.5px',textTransform:'uppercase'}}>View player info</div>
+          </div>
+          <div style={{marginLeft:'auto',fontSize:'1.4rem'}}>›</div>
+        </button>
+        <button onClick={()=>setScreen('who')} style={{width:'100%',minHeight:76,padding:'18px 20px',borderRadius:20,border:'3px solid #66ff7a',background:'linear-gradient(135deg,#38d94c 0%,#126822 100%)',color:'#fff',display:'flex',alignItems:'center',gap:16,cursor:'pointer',boxShadow:'0 8px 24px rgba(56,217,76,0.35)'}}>
+          <div style={{fontSize:'2rem'}}>▶️</div>
+          <div style={{textAlign:'left'}}>
+            <div style={{fontFamily:'Georgia,serif',fontSize:'1.25rem',fontWeight:900,letterSpacing:'1px'}}>GAME MODE</div>
+            <div style={{fontSize:'0.72rem',opacity:0.75,letterSpacing:'1.5px',textTransform:'uppercase'}}>Play full trivia golf</div>
+          </div>
+          <div style={{marginLeft:'auto',fontSize:'1.4rem'}}>›</div>
+        </button>
+        <button onClick={()=>setScreen('fundraiser_menu')} style={{width:'100%',minHeight:76,padding:'18px 20px',borderRadius:20,border:'3px solid #ffd85a',background:'linear-gradient(135deg,#ffcc33 0%,#8a6200 100%)',color:'#1c1400',display:'flex',alignItems:'center',gap:16,cursor:'pointer',boxShadow:'0 8px 24px rgba(255,204,51,0.35)'}}>
+          <div style={{fontSize:'2rem'}}>🏫</div>
+          <div style={{textAlign:'left'}}>
+            <div style={{fontFamily:'Georgia,serif',fontSize:'1.2rem',fontWeight:900,letterSpacing:'1px'}}>FUNDRAISER</div>
+            <div style={{fontSize:'0.72rem',opacity:0.8,letterSpacing:'1.5px',textTransform:'uppercase'}}>Event play mode</div>
+          </div>
+          <div style={{marginLeft:'auto',fontSize:'1.4rem'}}>›</div>
+        </button>
+        <button onClick={()=>setScreen('settings')} style={{width:'100%',minHeight:76,padding:'18px 20px',borderRadius:20,border:'3px solid #d66bff',background:'linear-gradient(135deg,#9b35d9 0%,#3d145f 100%)',color:'#fff',display:'flex',alignItems:'center',gap:16,cursor:'pointer',boxShadow:'0 8px 24px rgba(155,53,217,0.35)'}}>
+          <div style={{fontSize:'2rem'}}>⚙️</div>
+          <div style={{textAlign:'left'}}>
+            <div style={{fontFamily:'Georgia,serif',fontSize:'1.25rem',fontWeight:900,letterSpacing:'1px'}}>SETTINGS</div>
+            <div style={{fontSize:'0.72rem',opacity:0.75,letterSpacing:'1.5px',textTransform:'uppercase'}}>Game options</div>
+          </div>
+          <div style={{marginLeft:'auto',fontSize:'1.4rem'}}>›</div>
+        </button>
+      </div>
+      <button onClick={()=>setScreen('splash')} style={{marginTop:24,background:'rgba(255,255,255,0.06)',border:'1px solid rgba(255,255,255,0.14)',borderRadius:999,color:'rgba(255,255,255,0.78)',padding:'10px 18px',fontFamily:'Georgia,serif',fontSize:'0.9rem',cursor:'pointer'}}>← Back</button>
+    </div>
+  );
+ 
   if(screen==='who'){
-    
+    const savedProfiles=loadProfiles();
+    const savedNames=Object.keys(savedProfiles);
+    const activeProfile=loadProfile();
     return(
       <div className="screen center" style={{gap:0}}>
-        <img src="/logo.png" alt="Scramble Brains" style={{width:64,height:64,objectFit:'contain',marginBottom:20}}/>
-        <div style={{display:'flex',width:'100%',maxWidth:320,marginBottom:28,borderRadius:10,overflow:'hidden',border:'1px solid var(--border)'}}>
-          <button onClick={()=>setWhoTab('member')} style={{flex:1,padding:'13px',fontFamily:'Georgia,serif',fontSize:'0.9rem',border:'none',cursor:'pointer',background:whoTab==='member'?'var(--gold)':'var(--surface)',color:whoTab==='member'?'var(--bg)':'var(--muted)',letterSpacing:'1px',transition:'all 0.2s'}}>Member</button>
-          <button onClick={()=>setWhoTab('guest')} style={{flex:1,padding:'13px',fontFamily:'Georgia,serif',fontSize:'0.9rem',border:'none',cursor:'pointer',background:whoTab==='guest'?'var(--gold)':'var(--surface)',color:whoTab==='guest'?'var(--bg)':'var(--muted)',letterSpacing:'1px',transition:'all 0.2s'}}>Guest</button>
+        <div style={{fontSize:'3rem',marginBottom:16}}>⛳</div>
+        <h2 style={{fontFamily:'Georgia,serif',color:'var(--gold)',fontSize:'1.8rem',marginBottom:6,textAlign:'center'}}>Who's Playing?</h2>
+        <p style={{fontSize:'0.72rem',color:'var(--muted)',letterSpacing:'3px',textTransform:'uppercase',marginBottom:20,textAlign:'center'}}>Select a profile to continue</p>
+        {savedNames.length>0&&(
+          <div style={{width:'100%',maxWidth:360,marginBottom:20,display:'flex',flexDirection:'column',gap:8}}>
+            {savedNames.map(name=>{
+              const p=savedProfiles[name];
+              const isActive=activeProfile?.name===name;
+              return(
+                <div key={name} style={{width:'100%',padding:'12px',borderRadius:14,border:`2px solid ${isActive?'var(--gold)':'var(--border)'}`,background:isActive?'rgba(200,168,75,0.12)':'var(--surface)',display:'flex',alignItems:'center',gap:10}}>
+                  <button onClick={()=>{
+                    saveActiveProfileName(name);
+                    setPlayerNames([name]);
+                    setIsGuest(false);
+                    setScreen('game_mode');
+                  }} style={{flex:1,background:'transparent',border:'none',display:'flex',alignItems:'center',justifyContent:'space-between',cursor:'pointer',padding:0}}>
+                    <div style={{textAlign:'left'}}>
+                      <div style={{fontFamily:'Georgia,serif',color:'var(--gold)',fontSize:'1.05rem'}}>{name}</div>
+                      <div style={{fontSize:'0.68rem',color:'var(--muted)',marginTop:2}}>
+                        {p.courseTier?`${p.courseTier} Tee`:'No tier set'}
+                        {p.roundsPlayed?` · ${p.roundsPlayed} rounds`:''}
+                        {p.totalAnswers?` · ${Math.round((p.correctAnswers/p.totalAnswers)*100)}% acc`:''}
+                      </div>
+                    </div>
+                    <div style={{fontSize:'0.85rem',color:isActive?'var(--gold)':'var(--muted)',paddingLeft:10}}>{isActive?'✓ Active':'→'}</div>
+                  </button>
+                  <button onClick={()=>{setDeleteProfileName(name);setDeleteProfileConfirm('');}} style={{width:38,height:38,borderRadius:10,border:'1px solid rgba(192,57,43,0.65)',background:'rgba(192,57,43,0.12)',color:'var(--red)',fontFamily:'Georgia,serif',fontSize:'1rem',fontWeight:900,cursor:'pointer'}}>×</button>
+                </div>
+              );
+            })}
+          </div>
+        )}
+        {savedNames.length===0&&(
+          <p style={{color:'var(--muted)',fontSize:'0.88rem',marginBottom:20,textAlign:'center'}}>No saved profiles yet. Create one to get started.</p>
+        )}
+        <div style={{width:'100%',maxWidth:360,display:'flex',flexDirection:'column',gap:10,marginBottom:16}}>
+          <button onClick={()=>setShowProfile(true)} style={{width:'100%',padding:'13px',borderRadius:12,border:'1px solid var(--gold)',background:'rgba(200,168,75,0.08)',color:'var(--gold)',fontFamily:'Georgia,serif',fontSize:'0.9rem',cursor:'pointer'}}>+ Create New Profile</button>
+          <button onClick={()=>{setIsGuest(true);setPlayerNames(['Guest']);setScreen('game_mode');}} style={{width:'100%',padding:'13px',borderRadius:12,border:'1px solid var(--border)',background:'transparent',color:'var(--muted)',fontFamily:'Georgia,serif',fontSize:'0.9rem',cursor:'pointer'}}>Continue as Guest</button>
         </div>
-        {whoTab==='member'&&(
-          <div style={{width:'100%',maxWidth:300,display:'flex',flexDirection:'column',gap:14}}>
-            <input placeholder="Your Name" value={whoName} onChange={e=>setWhoName(e.target.value)}
-              style={{background:'transparent',border:'none',borderBottom:'1px solid var(--gold)',color:'var(--text)',padding:'12px 8px',fontFamily:'Georgia,serif',fontSize:'1rem',textAlign:'center',outline:'none',letterSpacing:'1px'}}/>
-            <input type="password" maxLength={4} placeholder="4-Digit PIN" value={whoPin} onChange={e=>setWhoPin(e.target.value.replace(/\D/g,'').slice(0,4))}
-              style={{background:'transparent',border:'none',borderBottom:'2px solid var(--gold)',color:'var(--text)',padding:'16px 8px',fontFamily:'Georgia,serif',fontSize:'2.4rem',textAlign:'center',outline:'none',letterSpacing:'12px'}}/>
-            {whoError&&<p style={{color:'var(--red)',fontSize:'0.78rem',textAlign:'center',margin:0}}>{whoError}</p>}
-            <button className="btn" disabled={!whoName.trim()||whoPin.length!==4||whoLoading} onClick={async()=>{
-              setWhoLoading(true);setWhoError('');
-              const profiles=loadProfiles();
-              const local=profiles[whoName.trim()];
-              if(local&&local.pin===whoPin.trim()){saveActiveProfileName(whoName.trim());setIsGuest(false);setScreen('modes');setWhoLoading(false);return;}
-              const found=await cloudLoadProfile(whoName.trim(),whoPin);
-              if(!found){setWhoError('Name or PIN not found — try again');setWhoLoading(false);return;}
-              saveProfile(found);setIsGuest(false);setScreen('modes');setWhoLoading(false);
-            }}>{whoLoading?'Loading...':'Sign In →'}</button>
-            <button onClick={()=>{setShowProfile(true);}} style={{background:'transparent',border:'1px solid var(--border)',color:'var(--muted)',padding:'11px',borderRadius:8,fontFamily:'Georgia,serif',fontSize:'0.82rem',cursor:'pointer'}}>✨ Create New Profile</button>
+        {deleteProfileName&&(
+          <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.82)',zIndex:9999,display:'flex',alignItems:'center',justifyContent:'center',padding:24}}>
+            <div style={{width:'100%',maxWidth:360,background:'var(--surface)',border:'2px solid rgba(192,57,43,0.75)',borderRadius:18,padding:24,boxShadow:'0 18px 50px rgba(0,0,0,0.55)',textAlign:'center'}}>
+              <div style={{fontSize:'2.4rem',marginBottom:10}}>⚠️</div>
+              <h2 style={{fontFamily:'Georgia,serif',color:'var(--red)',fontSize:'1.45rem',marginBottom:8}}>Delete Profile?</h2>
+              <p style={{color:'var(--muted)',fontSize:'0.86rem',lineHeight:1.45,marginBottom:16}}>
+                This will remove <strong style={{color:'var(--gold)'}}>{deleteProfileName}</strong> from this device.
+              </p>
+              <p style={{color:'var(--muted)',fontSize:'0.78rem',marginBottom:10}}>Type the profile name exactly to confirm.</p>
+              <input value={deleteProfileConfirm} onChange={e=>setDeleteProfileConfirm(e.target.value)} placeholder={deleteProfileName}
+                style={{width:'100%',background:'transparent',border:'1px solid var(--border)',borderRadius:10,color:'var(--text)',padding:'12px 14px',fontFamily:'Georgia,serif',fontSize:'1rem',outline:'none',textAlign:'center',marginBottom:16}}/>
+              <button onClick={()=>{
+                if(deleteProfileConfirm!==deleteProfileName)return;
+                const profiles=loadProfiles();
+                delete profiles[deleteProfileName];
+                saveProfiles(profiles);
+                if(loadActiveProfileName()===deleteProfileName){removeActiveProfile();setPlayerNames([]);}
+                setIsGuest(false);setDeleteProfileName(null);setDeleteProfileConfirm('');setScreen('who');
+              }} disabled={deleteProfileConfirm!==deleteProfileName} style={{width:'100%',padding:'12px',borderRadius:12,border:'none',background:deleteProfileConfirm===deleteProfileName?'var(--red)':'rgba(255,255,255,0.08)',color:deleteProfileConfirm===deleteProfileName?'#fff':'var(--muted)',fontFamily:'Georgia,serif',fontSize:'0.92rem',fontWeight:900,cursor:deleteProfileConfirm===deleteProfileName?'pointer':'default',marginBottom:10}}>
+                Permanently Delete Profile
+              </button>
+              <button onClick={()=>{setDeleteProfileName(null);setDeleteProfileConfirm('');}} style={{width:'100%',padding:'11px',borderRadius:12,border:'1px solid var(--border)',background:'transparent',color:'var(--muted)',fontFamily:'Georgia,serif',fontSize:'0.9rem',cursor:'pointer'}}>
+                Cancel
+              </button>
+            </div>
           </div>
         )}
-        {whoTab==='guest'&&(
-          <div style={{width:'100%',maxWidth:300,display:'flex',flexDirection:'column',gap:14,alignItems:'center'}}>
-            <p style={{color:'var(--muted)',fontFamily:'Georgia,serif',fontSize:'0.88rem',textAlign:'center',lineHeight:1.6}}>Play without a profile. Stats won't be saved.</p>
-            <button className="btn" style={{width:'100%'}} onClick={()=>{setIsGuest(true);setScreen('start');}}>Play as Guest →</button>
-          </div>
-        )}
-        <button onClick={()=>setScreen('splash')} style={{background:'transparent',border:'none',color:'var(--muted)',fontFamily:'Georgia,serif',fontSize:'0.8rem',cursor:'pointer',marginTop:24}}>← Back</button>
+        <button onClick={()=>setScreen('menu')} style={{marginTop:8,background:'rgba(255,255,255,0.06)',border:'1px solid rgba(255,255,255,0.14)',borderRadius:999,color:'rgba(255,255,255,0.78)',padding:'10px 18px',fontFamily:'Georgia,serif',fontSize:'0.9rem',cursor:'pointer'}}>← Back</button>
       </div>
     );
   }
-
-  if(screen==='modes'){
-    const profile=loadProfile();
-    const config=getFundraiserConfig();
-    const expired=isFundraiserExpired();
-    return(
-      <div className="screen center" style={{gap:0}}>
-        <img src="/logo.png" alt="Scramble Brains" style={{width:64,height:64,objectFit:'contain',marginBottom:20}}/>
-        <div style={{width:'100%',maxWidth:300,display:'flex',flexDirection:'column',gap:14}}>
-          <button className="btn" onClick={()=>{setIsGuest(false);setScreen('start');}} style={{width:'100%',padding:'22px',fontSize:'1.1rem',letterSpacing:'2px',display:'flex',flexDirection:'column',alignItems:'center',gap:6}}>
-            <span style={{fontSize:'1.6rem'}}>⛳</span>
-            <span>Play Golf</span>
-            {profile?.courseTier&&<span style={{fontSize:'0.65rem',opacity:0.7,fontFamily:'Georgia,serif'}}>Playing as {profile.name}</span>}
-          </button>
-          <button onClick={()=>setScreen('fundraiser_menu')} style={{width:'100%',padding:'22px',fontSize:'1.1rem',letterSpacing:'2px',display:'flex',flexDirection:'column',alignItems:'center',gap:6,background:'rgba(200,168,75,0.08)',border:'1px solid var(--gold)',color:'var(--gold)',borderRadius:8,fontFamily:'Georgia,serif',cursor:'pointer'}}>
-            <span style={{fontSize:'1.6rem'}}>🏫</span>
-            <span>Fundraiser</span>
-          </button>
-          <div style={{display:'flex',gap:10}}>
-            <button onClick={()=>setShowPicker(true)} style={{flex:1,background:'transparent',border:'1px solid var(--border)',color:'var(--muted)',padding:'11px',borderRadius:8,fontFamily:'Georgia,serif',fontSize:'0.78rem',cursor:'pointer'}}>👥 Change Player</button>
-            <button onClick={()=>setShowProfile(true)} style={{flex:1,background:'transparent',border:'1px solid var(--border)',color:'var(--muted)',padding:'11px',borderRadius:8,fontFamily:'Georgia,serif',fontSize:'0.78rem',cursor:'pointer'}}>✏️ Profile</button>
-          </div>
+ 
+  if(screen==='game_mode')return(
+    <div className="screen center" style={{gap:0}}>
+      <div style={{fontSize:'3rem',marginBottom:16}}>🏌️</div>
+      <h2 style={{fontFamily:'Georgia,serif',color:'var(--gold)',fontSize:'1.8rem',marginBottom:6,textAlign:'center'}}>Game Mode</h2>
+      <p style={{fontSize:'0.72rem',color:'var(--muted)',letterSpacing:'3px',textTransform:'uppercase',marginBottom:8,textAlign:'center'}}>Choose Your Round</p>
+      {playerNames[0]&&playerNames[0]!=='Guest'&&(
+        <div style={{background:'rgba(200,168,75,0.08)',border:'1px solid var(--gold)',borderRadius:10,padding:'8px 18px',marginBottom:20,textAlign:'center'}}>
+          <span style={{fontFamily:'Georgia,serif',color:'var(--gold)',fontSize:'0.95rem'}}>Playing as {playerNames[0]}</span>
         </div>
-        <button onClick={()=>setShowCategoryForm(true)} style={{background:'transparent',border:'1px solid var(--border)',color:'var(--muted)',padding:'10px',borderRadius:8,fontFamily:'Georgia,serif',fontSize:'0.78rem',cursor:'pointer',marginTop:4,width:'100%',maxWidth:300}}>🎯 Request a Category</button>
-        <button onClick={()=>setScreen('who')} style={{background:'transparent',border:'none',color:'var(--muted)',fontFamily:'Georgia,serif',fontSize:'0.8rem',cursor:'pointer',marginTop:12}}>← Back</button>
+      )}
+      <div style={{width:'100%',maxWidth:360,display:'flex',flexDirection:'column',gap:14}}>
+        <button onClick={()=>setScreen('start')} style={{width:'100%',minHeight:86,padding:'18px 20px',borderRadius:20,border:'3px solid #66ff7a',background:'linear-gradient(135deg,#38d94c 0%,#126822 100%)',color:'#fff',display:'flex',alignItems:'center',gap:16,cursor:'pointer',boxShadow:'0 8px 24px rgba(56,217,76,0.35)',textAlign:'left'}}>
+          <div style={{fontSize:'2.1rem'}}>🏌️</div>
+          <div>
+            <div style={{fontFamily:'Georgia,serif',fontSize:'1.3rem',fontWeight:900,letterSpacing:'1px'}}>STROKE PLAY</div>
+            <div style={{fontSize:'0.72rem',opacity:0.78,letterSpacing:'1.5px',textTransform:'uppercase'}}>Classic 18-hole score mode</div>
+          </div>
+          <div style={{marginLeft:'auto',fontSize:'1.5rem'}}>›</div>
+        </button>
+        <button onClick={()=>{
+          const p=loadProfile();
+          setPlayerNames([p?p.name:'Player 1','Player 2']);
+          setScreen('start');
+        }} style={{width:'100%',minHeight:86,padding:'18px 20px',borderRadius:20,border:'3px solid #5f7cff',background:'linear-gradient(135deg,#3557ff 0%,#16235f 100%)',color:'#fff',display:'flex',alignItems:'center',gap:16,cursor:'pointer',boxShadow:'0 8px 24px rgba(53,87,255,0.35)',textAlign:'left'}}>
+          <div style={{fontSize:'2.1rem'}}>⚔️</div>
+          <div>
+            <div style={{fontFamily:'Georgia,serif',fontSize:'1.3rem',fontWeight:900,letterSpacing:'1px'}}>MATCH PLAY</div>
+            <div style={{fontSize:'0.72rem',opacity:0.78,letterSpacing:'1.5px',textTransform:'uppercase'}}>Head-to-head player setup</div>
+          </div>
+          <div style={{marginLeft:'auto',fontSize:'1.5rem'}}>›</div>
+        </button>
       </div>
-    );
-  }
-
+      <button onClick={()=>setScreen('who')} style={{marginTop:24,background:'rgba(255,255,255,0.06)',border:'1px solid rgba(255,255,255,0.14)',borderRadius:999,color:'rgba(255,255,255,0.78)',padding:'10px 18px',fontFamily:'Georgia,serif',fontSize:'0.9rem',cursor:'pointer'}}>← Back</button>
+    </div>
+  );
+ 
   if(screen==='fundraiser_menu'){
     const config=getFundraiserConfig();
     const expired=isFundraiserExpired();
     const profile=loadProfile();
     const deadlineStr=new Date(config.deadline).toLocaleDateString('en-US',{month:'short',day:'numeric'});
     return(
-      <div className="screen center" style={{gap:0}}>
-        <img src="/logo.png" alt="Scramble Brains" style={{width:64,height:64,objectFit:'contain',marginBottom:20}}/>
-        <p style={{fontSize:'0.65rem',letterSpacing:'4px',textTransform:'uppercase',color:'var(--muted)',marginBottom:24}}>Select Event</p>
-        <div style={{width:'100%',maxWidth:300,display:'flex',flexDirection:'column',gap:12}}>
+      <div style={{minHeight:'100vh',background:'radial-gradient(circle at top,#2a1a00 0%,#0d0800 55%,#020100 100%)',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',padding:'28px 18px'}}>
+        <div style={{textAlign:'center',marginBottom:26}}>
+          <img src="/logo.png" alt="Scramble Brains" style={{width:96,height:96,objectFit:'contain',marginBottom:10,filter:'drop-shadow(0 0 18px rgba(200,168,75,0.45))'}}/>
+          <div style={{fontFamily:'Georgia,serif',fontSize:'1.55rem',fontWeight:900,color:'#f5e7b8',letterSpacing:'1px'}}>Fundraiser Events</div>
+          <div style={{fontSize:'0.72rem',color:'rgba(255,255,255,0.68)',letterSpacing:'2px',textTransform:'uppercase',marginTop:4}}>Select Your Event</div>
+        </div>
+        <div style={{width:'100%',maxWidth:390,display:'flex',flexDirection:'column',gap:14}}>
           {expired?(
-            <div style={{background:'var(--surface)',border:'1px solid var(--border)',borderRadius:10,padding:'20px',textAlign:'center'}}>
-              <p style={{fontFamily:'Georgia,serif',color:'var(--muted)',fontSize:'0.9rem'}}>Ashlyn G. Volleyball Fundraiser</p>
-              <p style={{fontSize:'0.75rem',color:'var(--red)',marginTop:8}}>Event Ended</p>
+            <div style={{width:'100%',minHeight:76,padding:'18px 20px',borderRadius:20,border:'3px solid #444',background:'rgba(255,255,255,0.04)',display:'flex',alignItems:'center',gap:16}}>
+              <div style={{fontSize:'2rem'}}>🏁</div>
+              <div style={{textAlign:'left'}}>
+                <div style={{fontFamily:'Georgia,serif',fontSize:'1.25rem',fontWeight:900,letterSpacing:'1px',color:'var(--muted)'}}>MASTER BETA LAUNCH</div>
+                <div style={{fontSize:'0.72rem',color:'var(--red)',letterSpacing:'1.5px',textTransform:'uppercase',marginTop:4}}>Event Ended</div>
+              </div>
             </div>
           ):(
             <button onClick={()=>{
-              if(!profile?.calibrated){setShowProfile(true);return;}
+              const activeProfile=loadProfile();
+              if(!activeProfile){setShowProfile(true);return;}
               setScreen('fundraiser');
-            }} style={{width:'100%',padding:'20px',background:'rgba(200,168,75,0.08)',border:'1px solid var(--gold)',borderRadius:10,cursor:'pointer',textAlign:'center'}}>
-              <p style={{fontFamily:'Georgia,serif',fontSize:'1.05rem',color:'var(--gold)',marginBottom:6}}>Master Beta Launch</p>
-              <p style={{fontSize:'0.7rem',color:'var(--muted)'}}>Deadline {deadlineStr}</p>
-              {profile?.division&&<p style={{fontSize:'0.7rem',color:'var(--gold)',marginTop:4}}>🏫 {profile.division}</p>}
-              {!profile?.calibrated&&<p style={{fontSize:'0.7rem',color:'var(--red)',marginTop:6}}>⚠️ Profile setup required</p>}
+            }} style={{width:'100%',minHeight:86,padding:'18px 20px',borderRadius:20,border:'3px solid #ffd85a',background:'linear-gradient(135deg,#ffcc33 0%,#8a6200 100%)',color:'#1c1400',display:'flex',alignItems:'center',gap:16,cursor:'pointer',boxShadow:'0 8px 24px rgba(255,204,51,0.35)',textAlign:'left'}}>
+              <div style={{fontSize:'2.1rem'}}>🏫</div>
+              <div>
+                <div style={{fontFamily:'Georgia,serif',fontSize:'1.3rem',fontWeight:900,letterSpacing:'1px'}}>MASTER BETA LAUNCH</div>
+                <div style={{fontSize:'0.72rem',opacity:0.78,letterSpacing:'1.5px',textTransform:'uppercase'}}>Deadline {deadlineStr}{profile?.division?` · ${profile.division}`:''}</div>
+              </div>
+              <div style={{marginLeft:'auto',fontSize:'1.5rem'}}>›</div>
             </button>
           )}
         </div>
-        <button onClick={()=>setScreen('modes')} style={{background:'transparent',border:'none',color:'var(--muted)',fontFamily:'Georgia,serif',fontSize:'0.8rem',cursor:'pointer',marginTop:24}}>← Back</button>
+        <button onClick={()=>setScreen('menu')} style={{marginTop:24,background:'rgba(255,255,255,0.06)',border:'1px solid rgba(255,255,255,0.14)',borderRadius:999,color:'rgba(255,255,255,0.78)',padding:'10px 18px',fontFamily:'Georgia,serif',fontSize:'0.9rem',cursor:'pointer'}}>← Back</button>
       </div>
     );
   }
-
-  if(screen==='landing'){
-    return <div/>;
-  }
-
+ 
   if(screen==='settings'){
     const profile=loadProfile();
     return(
       <div style={{minHeight:'100vh',background:'radial-gradient(ellipse at top,#0a2e1a 0%,#051208 60%,#020a05 100%)',padding:'24px 16px'}}>
-        {/* Header */}
         <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:24}}>
           <div style={{fontSize:'1.8rem'}}>⚙️</div>
           <div>
@@ -1805,8 +2047,6 @@ export default function App(){
           </div>
           <img src="/logo.png" alt="" style={{width:48,height:48,objectFit:'contain',marginLeft:'auto',opacity:0.8}}/>
         </div>
-
-        {/* Account section */}
         <div style={{marginBottom:16}}>
           <p style={{fontSize:'0.6rem',letterSpacing:'3px',textTransform:'uppercase',color:'var(--gold)',marginBottom:10}}>Account</p>
           <div style={{background:'var(--surface)',border:'1px solid var(--border)',borderRadius:12,overflow:'hidden'}}>
@@ -1831,7 +2071,7 @@ export default function App(){
               </div>
               <div style={{fontFamily:'Georgia,serif',color:'var(--gold)',fontSize:'0.9rem'}}>{profile?.calibrated?profile.sbIndex?.toFixed(1):'Not calibrated'}</div>
             </div>
-            <button onClick={()=>{setShowProfile(true);setScreen('splash');}} style={{width:'100%',padding:'16px',background:'transparent',border:'none',display:'flex',justifyContent:'space-between',alignItems:'center',cursor:'pointer'}}>
+            <button onClick={()=>setShowProfile(true)} style={{width:'100%',padding:'16px',background:'transparent',border:'none',display:'flex',justifyContent:'space-between',alignItems:'center',cursor:'pointer'}}>
               <div>
                 <div style={{fontFamily:'Georgia,serif',color:'var(--text)',fontSize:'0.95rem',textAlign:'left'}}>Edit Profile</div>
                 <div style={{fontSize:'0.7rem',color:'var(--muted)',marginTop:2,textAlign:'left'}}>Update your information</div>
@@ -1840,8 +2080,6 @@ export default function App(){
             </button>
           </div>
         </div>
-
-        {/* Help section */}
         <div style={{marginBottom:16}}>
           <p style={{fontSize:'0.6rem',letterSpacing:'3px',textTransform:'uppercase',color:'var(--gold)',marginBottom:10}}>Help & Support</p>
           <div style={{background:'var(--surface)',border:'1px solid var(--border)',borderRadius:12,overflow:'hidden'}}>
@@ -1861,8 +2099,6 @@ export default function App(){
             </div>
           </div>
         </div>
-
-        {/* About section */}
         <div style={{marginBottom:24}}>
           <p style={{fontSize:'0.6rem',letterSpacing:'3px',textTransform:'uppercase',color:'var(--gold)',marginBottom:10}}>About</p>
           <div style={{background:'var(--surface)',border:'1px solid var(--border)',borderRadius:12,padding:'16px'}}>
@@ -1871,16 +2107,14 @@ export default function App(){
             <div style={{fontSize:'0.65rem',color:'var(--border)',letterSpacing:'2px'}}>VERSION 1.0 · 2026</div>
           </div>
         </div>
-
-        {/* Bottom nav */}
         <div style={{display:'flex',gap:10,width:'100%',maxWidth:340,margin:'0 auto'}}>
           <button onClick={()=>setScreen('who')} style={{flex:2,padding:'16px',background:'linear-gradient(135deg,#1a6b2e 0%,#0d3d1a 100%)',border:'2px solid #2d9e4a',borderRadius:12,cursor:'pointer',fontFamily:'Georgia,serif',fontSize:'1rem',color:'#fff',letterSpacing:'2px',fontWeight:'bold'}}>▶ PLAY</button>
-          <button onClick={()=>setScreen('splash')} style={{flex:1,padding:'16px',background:'transparent',border:'1px solid var(--border)',borderRadius:12,cursor:'pointer',fontFamily:'Georgia,serif',fontSize:'0.8rem',color:'var(--muted)'}}>← Back</button>
+          <button onClick={()=>setScreen('menu')} style={{flex:1,padding:'16px',background:'transparent',border:'1px solid var(--border)',borderRadius:12,cursor:'pointer',fontFamily:'Georgia,serif',fontSize:'0.8rem',color:'var(--muted)'}}>← Back</button>
         </div>
       </div>
     );
   }
-
+ 
   if(screen==='hole_leaderboard'){
     const completedHole=COURSE[holeIdx],isLastHole=holeIdx>=roundLength-1;
     const totalPar=COURSE.slice(0,scorecard.length).reduce((s,h)=>s+h.par,0);
@@ -1911,57 +2145,46 @@ export default function App(){
           <p style={{fontFamily:'Georgia,serif',fontSize:'1.6rem',color:diffColor}}>{totalDiff<0?totalDiff:totalDiff===0?'E':`+${totalDiff}`}</p>
           <p style={{fontSize:'0.75rem',color:'var(--muted)'}}>{totalStrokes} strokes · Par {totalPar}</p>
         </div>
-        <div style={{background:'var(--surface)',border:'1px solid var(--border)',borderRadius:8,padding:'12px 16px',marginBottom:20,width:'100%',textAlign:'center'}}>
+        {nextHole&&<div style={{background:'var(--surface)',border:'1px solid var(--border)',borderRadius:8,padding:'12px 16px',marginBottom:20,width:'100%',textAlign:'center'}}>
           <p style={{fontSize:'0.6rem',letterSpacing:'3px',textTransform:'uppercase',color:'var(--muted)',marginBottom:4}}>Up Next</p>
           <p style={{fontFamily:'Georgia,serif',fontSize:'1rem',color:'var(--text)'}}>Hole {nextHole.number} — {nextHole.name}</p>
           <p style={{fontSize:'0.78rem',color:'var(--muted)'}}>Par {nextHole.par} · {nextHole.yards} yards{nextHole.water?' · 🌊 Water':''}</p>
-        </div>
-        <button className="btn" style={{width:'100%'}} onClick={proceedToNextHole}>{isLastHole?'Finish Round →':`Tee Off Hole ${nextHole.number} →`}</button>
+        </div>}
+        <button className="btn" style={{width:'100%'}} onClick={proceedToNextHole}>{isLastHole?'Finish Round →':`Tee Off Hole ${nextHole?.number} →`}</button>
       </div>
     );
   }
-
+ 
   if(screen==='start')return(
-    <div className="screen center" style={{gap:0,justifyContent:'center'}}>
-      <div style={{width:80,height:80,borderRadius:'50%',border:'2px solid var(--gold)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'2rem',marginBottom:24,background:'radial-gradient(circle,#1a2e20 0%,var(--bg) 100%)',boxShadow:'0 0 32px rgba(200,168,75,0.15)'}}>⛳</div>
-      <h1 style={{fontFamily:'Georgia,serif',fontSize:'clamp(2.4rem,9vw,3.8rem)',color:'var(--gold)',letterSpacing:'2px',lineHeight:1.1,textAlign:'center',marginBottom:8}}>Scramble<br/>Brains</h1>
-      <div style={{width:60,height:1,background:'var(--gold)',opacity:0.4,margin:'16px auto'}}/>
-      <p style={{fontSize:'0.72rem',letterSpacing:'4px',textTransform:'uppercase',color:'var(--muted)',marginBottom:16}}>Golf · Trivia · Strategy</p>
-      {isGuest&&<div style={{width:'100%',maxWidth:300,background:'rgba(200,168,75,0.1)',border:'1px solid var(--gold)',borderRadius:8,padding:'10px 14px',marginBottom:16,textAlign:'center'}}>
-        <p style={{fontSize:'0.72rem',color:'var(--gold)',fontFamily:'Georgia,serif'}}>⚠️ Guest mode — no handicap or ranking will be tracked</p>
-      </div>}
-      {(!loadProfile()||isGuest)&&<div style={{width:'100%',maxWidth:280,display:'flex',flexDirection:'column',gap:8,marginBottom:16}}>
-        {playerNames.map((name,i)=>(
-          <div key={i} style={{display:'flex',gap:8,alignItems:'center'}}>
-            <input type="text" placeholder={i===0?'Your name':'Player '+(i+1)+' name'} value={name} onChange={e=>updateName(i,e.target.value)} maxLength={20}
-              style={{flex:1,background:'transparent',border:'none',borderBottom:'1px solid var(--gold)',color:'var(--text)',padding:'10px 8px',fontFamily:'Georgia,serif',fontSize:'1rem',letterSpacing:'2px',textAlign:'center',outline:'none'}}/>
-            {i>0&&<button onClick={()=>removeName(i)} style={{background:'transparent',border:'1px solid var(--border)',color:'var(--muted)',padding:'6px 10px',borderRadius:6,cursor:'pointer',fontFamily:'Georgia,serif',fontSize:'0.8rem'}}>✕</button>}
-          </div>
-        ))}
-        {playerNames.length<4&&<button onClick={()=>setPlayerNames(n=>[...n,''])} style={{background:'transparent',border:'1px dashed var(--border)',color:'var(--muted)',padding:'8px',borderRadius:6,fontFamily:'Georgia,serif',fontSize:'0.78rem',cursor:'pointer'}}>+ Add Player</button>}
-      </div>}
-      {loadProfile()&&!isGuest&&<div style={{background:'var(--surface)',border:'1px solid var(--gold)',borderRadius:8,padding:'12px 16px',marginBottom:16,width:'100%',maxWidth:280,textAlign:'center'}}>
-        <p style={{fontSize:'0.65rem',letterSpacing:'2px',textTransform:'uppercase',color:'var(--muted)',marginBottom:4}}>Playing as</p>
-        <p style={{fontFamily:'Georgia,serif',fontSize:'1.1rem',color:'var(--gold)'}}>{loadProfile()?.name}</p>
-      </div>}
-      <p style={{fontSize:'0.65rem',letterSpacing:'3px',textTransform:'uppercase',color:'var(--muted)',marginBottom:10}}>How many holes?</p>
-      <div style={{display:'flex',gap:8,marginBottom:6,width:'100%',maxWidth:280}}>
-        {([9,18] as const).map(n=>(
-          <button key={n} onClick={()=>setRoundLength(n)} style={{flex:1,background:roundLength===n?'var(--gold)':'transparent',color:roundLength===n?'var(--bg)':'var(--muted)',border:`1px solid ${roundLength===n?'var(--gold)':'var(--border)'}`,padding:'12px',borderRadius:6,fontFamily:'Georgia,serif',fontSize:'1rem',cursor:'pointer'}}>{n} Holes</button>
-        ))}
+    <div className="screen center">
+      <div style={{textAlign:'center',marginBottom:20}}>
+        <div style={{fontSize:'2.8rem',marginBottom:6}}>⛳</div>
+        <h1 style={{fontFamily:'Georgia,serif',color:'var(--gold)',fontSize:'2rem',marginBottom:6}}>Scramble Brains</h1>
+        <p style={{fontSize:'0.7rem',color:'var(--muted)',letterSpacing:'3px',textTransform:'uppercase'}}>Golf • Trivia • Strategy</p>
       </div>
-      <p style={{fontSize:'0.7rem',letterSpacing:'2px',textTransform:'uppercase',color:'var(--border)',marginBottom:16}}>Par {COURSE.slice(0,roundLength).reduce((s,h)=>s+h.par,0)}</p>
-      <button onClick={startRound}
-        style={{background:'transparent',border:`1px solid ${playerNames[0].trim()?'var(--gold)':'var(--border)'}`,color:playerNames[0].trim()?'var(--gold)':'var(--muted)',padding:'14px 48px',borderRadius:2,fontFamily:'Georgia,serif',fontSize:'0.85rem',letterSpacing:'4px',textTransform:'uppercase',cursor:'pointer'}}
-        onMouseEnter={e=>{if(!playerNames[0].trim())return;(e.target as HTMLButtonElement).style.background='var(--gold)';(e.target as HTMLButtonElement).style.color='var(--bg)';}}
-        onMouseLeave={e=>{(e.target as HTMLButtonElement).style.background='transparent';(e.target as HTMLButtonElement).style.color=playerNames[0].trim()?'var(--gold)':'var(--muted)';}}>
-        {playerNames.filter(n=>n.trim()).length>1?'Start Multiplayer →':'Enter'}
-      </button>
-      <button onClick={()=>setShowProfile(true)} style={{marginTop:16,background:'transparent',border:'1px solid var(--border)',color:'var(--muted)',padding:'8px 24px',borderRadius:6,fontFamily:'Georgia,serif',fontSize:'0.75rem',letterSpacing:'2px',cursor:'pointer'}}>🏌️ Player Profiles</button>
-      <button onClick={()=>setScreen('modes')} style={{marginTop:8,background:'transparent',border:'none',color:'var(--muted)',fontFamily:'Georgia,serif',fontSize:'0.8rem',cursor:'pointer'}}>← Back</button>
+      <div style={{width:'100%',maxWidth:360}}>
+        <div style={{border:'2px solid var(--gold)',borderRadius:14,padding:'12px',marginBottom:18,textAlign:'center',background:'rgba(200,168,75,0.08)'}}>
+          <div style={{fontSize:'0.65rem',letterSpacing:'2px',color:'var(--muted)',textTransform:'uppercase'}}>Playing As</div>
+          <div style={{fontFamily:'Georgia,serif',fontSize:'1.2rem',color:'var(--gold)',marginTop:4}}>
+            {loadProfile()?.name||playerNames?.[0]||'Guest'}
+          </div>
+        </div>
+        <div style={{textAlign:'center',marginBottom:16}}>
+          <div style={{fontSize:'0.65rem',letterSpacing:'2px',color:'var(--muted)',textTransform:'uppercase',marginBottom:10}}>How Many Holes?</div>
+          <div style={{display:'flex',gap:10}}>
+            <button onClick={()=>setRoundLength(9)} style={{flex:1,padding:'16px',borderRadius:14,border:roundLength===9?'2px solid var(--gold)':'1px solid var(--border)',background:roundLength===9?'var(--gold)':'transparent',color:roundLength===9?'#000':'var(--text)',fontFamily:'Georgia,serif',fontSize:'1rem',cursor:'pointer'}}>9 Holes</button>
+            <button onClick={()=>setRoundLength(18)} style={{flex:1,padding:'16px',borderRadius:14,border:roundLength===18?'2px solid var(--gold)':'1px solid var(--border)',background:roundLength===18?'var(--gold)':'transparent',color:roundLength===18?'#000':'var(--text)',fontFamily:'Georgia,serif',fontSize:'1rem',cursor:'pointer'}}>18 Holes</button>
+          </div>
+        </div>
+        <p style={{fontSize:'0.7rem',letterSpacing:'2px',textTransform:'uppercase',color:'var(--border)',marginBottom:16,textAlign:'center'}}>Par {COURSE.slice(0,roundLength).reduce((s,h)=>s+h.par,0)}</p>
+        <button onClick={startRound} style={{width:'100%',padding:'18px',borderRadius:18,border:'2px solid var(--gold)',background:'linear-gradient(135deg,#ffcc33 0%,#8a6200 100%)',color:'#000',fontFamily:'Georgia,serif',fontSize:'1.2rem',letterSpacing:'2px',cursor:'pointer',boxShadow:'0 8px 28px rgba(255,204,51,0.35)',marginBottom:12}}>
+          ENTER ROUND
+        </button>
+        <button onClick={()=>setScreen('who')} style={{width:'100%',background:'transparent',border:'none',color:'var(--muted)',fontFamily:'Georgia,serif',fontSize:'0.85rem',cursor:'pointer'}}>← Back</button>
+      </div>
     </div>
   );
-
+ 
   if(screen==='multi'){
     const totalPar=COURSE.reduce((s,h)=>s+h.par,0);
     if(multiPhase==='end'){
@@ -1978,7 +2201,7 @@ export default function App(){
               <span style={{color:diff<0?'var(--gold)':diff===0?'var(--green-lt)':'var(--red)',fontSize:'0.85rem'}}>{diff>0?`+${diff}`:diff===0?'E':diff}</span>
             </div>);})}
           </div>
-          <button className="btn" onClick={()=>setScreen('modes')}>Play Again</button>
+          <button className="btn" onClick={()=>setScreen('who')}>Play Again</button>
         </div>
       );
     }
@@ -2021,18 +2244,19 @@ export default function App(){
       </div>
     );
   }
-
+ 
   if(screen==='end'){
     const totalPar=COURSE.slice(0,roundLength).reduce((s,h)=>s+h.par,0);
     const totalStrokes=scorecard.reduce((a,b)=>a+b,0),diff=totalStrokes-totalPar;
     const profile=loadProfile();
     const answerPct=roundTotal>0?Math.round(roundCorrect/roundTotal*100):0;
+    // FIX: use projectedOwsbr (not projectedOwgtr) consistently
     const projected=profile?calcProjectedRanking(profile,roundCorrect,roundTotal):null;
     const nextTuesday=getNextTuesdayNoon();
     const tuesdayStr=nextTuesday.toLocaleDateString('en-US',{weekday:'long',month:'short',day:'numeric'});
     if(profile&&projected){
       try{
-        localStorage.setItem('sb_pending_ranking',JSON.stringify({projectedHandicap:projected.projectedHandicap,projectedOwgtr:projected.projectedOwgtr}));
+        localStorage.setItem('sb_pending_ranking',JSON.stringify({projectedHandicap:projected.projectedHandicap,projectedOwsbr:projected.projectedOwsbr}));
         const up={...profile,roundsPlayed:(profile.roundsPlayed||0)+1,correctAnswers:(profile.correctAnswers||0)+roundCorrect,totalAnswers:(profile.totalAnswers||0)+roundTotal};
         saveProfile(up);
       }catch{}
@@ -2055,7 +2279,13 @@ export default function App(){
         {profile&&projected&&<div style={{width:'100%',marginBottom:20}}>
           <p style={{fontSize:'0.65rem',letterSpacing:'3px',textTransform:'uppercase',color:'var(--muted)',marginBottom:12,textAlign:'center'}}>Trivia — {answerPct}% ({roundCorrect}/{roundTotal})</p>
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:12}}>
-            {([['Current Handicap',profile.triviaHandicap,tierColor],['Current O.W.G.T.R.',profile.owgtr,'var(--gold)'],['Projected Handicap',projected.projectedHandicap,movementColor],['Projected O.W.G.T.R.',projected.projectedOwgtr,movementColor]] as [string,any,string][]).map(([label,val,color])=>(
+            {([
+              ['Current Handicap',profile.triviaHandicap,tierColor],
+              // FIX: use owsbr (lowercase) consistently — Profile type uses owsbr
+              ['Current O.W.S.B.R.',profile.owsbr,'var(--gold)'],
+              ['Projected Handicap',projected.projectedHandicap,movementColor],
+              ['Projected O.W.S.B.R.',projected.projectedOwsbr,movementColor],
+            ] as [string,any,string][]).map(([label,val,color])=>(
               <div key={label} style={{background:'var(--surface)',border:`1px solid ${color}`,borderRadius:8,padding:'10px',textAlign:'center'}}>
                 <div style={{fontSize:'0.58rem',letterSpacing:'1.5px',textTransform:'uppercase',color:'var(--muted)',marginBottom:4}}>{label}</div>
                 <div style={{fontSize:'1.2rem',fontFamily:'Georgia,serif',color}}>{val}</div>
@@ -2067,24 +2297,22 @@ export default function App(){
             <p style={{fontSize:'0.72rem',color:'var(--muted)'}}>Rankings update <strong style={{color:'var(--text)'}}>Tuesday, {tuesdayStr}</strong> at 12:00 PM ET</p>
           </div>
         </div>}
-        <button className="btn" onClick={()=>setScreen('modes')}>Play Again</button>
+        <button className="btn" onClick={()=>setScreen('who')}>Play Again</button>
       </div>
     );
   }
-
+ 
+  // ─── GAME SCREEN ─────────────────────────────────────────────────
   const availableClubs=getAvailableClubs(remaining),bucket=getBucket(remaining);
   return(
     <div className="screen">
       <div className="scoreboard">
-        <div className="sc" style={{padding:'2px 4px'}}>
-          <AvatarDisplay avatar={loadProfile()?.avatar} size="sm" />
-        </div>
         {[['Hole',`${hole.number}/18`],['Par',hole.par],['Strokes',strokes],['Lie',lie],['To Go',remaining>20?`${remaining}yd`:remaining>0?`${remaining}ft`:'—']].map(([l,v])=>(
           <div className="sc" key={String(l)}><span className="sc-label">{l}</span><span className="sc-val">{v}</span></div>
         ))}
         <div className="sc"><span className="sc-label">Wind</span><span className="sc-val" style={{fontSize:'0.78rem'}}>{wind.speed===0?'—':`${WIND_ARROWS[wind.dir]}${wind.speed}`}</span></div>
       </div>
-      <HoleGraphic holeYards={hole.yards} remaining={remaining} lie={lie} par={hole.par} strokes={strokes} scorecard={scorecard} playerName={playerName} isMulti={false} showHeader={false}/>
+      <HoleGraphic holeYards={hole.yards} remaining={remaining} lie={lie} par={hole.par} strokes={strokes} scorecard={scorecard} playerName={playerName} isMulti={false}/>
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10}}>
         <p className="phase-label" style={{margin:0}}>{hole.name} · {bucket} · {remaining>20?`${remaining} yards`:`${remaining} feet`} to go</p>
         <button onClick={()=>setScreen('start')} style={{background:'transparent',border:'1px solid var(--border)',color:'var(--muted)',padding:'4px 10px',borderRadius:6,fontSize:'0.75rem',cursor:'pointer'}}>✕ Exit</button>
@@ -2097,30 +2325,9 @@ export default function App(){
         {wind.speed>0&&<p style={{fontSize:'0.72rem',color:'var(--muted)',marginBottom:8,textAlign:'center'}}>{WIND_ARROWS[wind.dir]} {wind.speed} mph {wind.dir} wind{['S','SW','SE'].includes(wind.dir)?' — tailwind':['N'].includes(wind.dir)?' — headwind':' — crosswind'}</p>}
         <div style={{display:'flex',flexDirection:'column',gap:12,width:'100%',maxWidth:340,margin:'0 auto'}}>
           {availableClubs.map(c=>(
-            <button key={c} onClick={()=>chooseClub(c)} style={{
-              background:'linear-gradient(135deg,#0d2414 0%,#1a3d20 100%)',
-              border:'1px solid var(--gold)',
-              borderRadius:12,
-              padding:'16px 20px',
-              display:'flex',
-              alignItems:'center',
-              justifyContent:'space-between',
-              cursor:'pointer',
-              width:'100%',
-            }}>
+            <button key={c} onClick={()=>chooseClub(c)} style={{background:'linear-gradient(135deg,#0d2414 0%,#1a3d20 100%)',border:'1px solid var(--gold)',borderRadius:12,padding:'16px 20px',display:'flex',alignItems:'center',justifyContent:'space-between',cursor:'pointer',width:'100%'}}>
               <div style={{display:'flex',alignItems:'center',gap:14}}>
-                <div style={{
-                  width:44,
-                  height:44,
-                  borderRadius:'50%',
-                  background:'rgba(200,168,75,0.15)',
-                  border:'1px solid var(--gold)',
-                  display:'flex',
-                  alignItems:'center',
-                  justifyContent:'center',
-                  fontSize:'1.4rem',
-                  flexShrink:0,
-                }}>🏌️</div>
+                <div style={{width:44,height:44,borderRadius:'50%',background:'rgba(200,168,75,0.15)',border:'1px solid var(--gold)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'1.4rem',flexShrink:0}}>🏌️</div>
                 <div style={{textAlign:'left'}}>
                   <div style={{fontFamily:'Georgia,serif',fontSize:'1.1rem',color:'var(--gold)',letterSpacing:'1px'}}>{CLUBS[c].name}</div>
                   <div style={{fontSize:'0.7rem',letterSpacing:'2px',textTransform:'uppercase',color:'var(--muted)',marginTop:2}}>Standard Club</div>
